@@ -7,4 +7,6 @@ This tool is based on the protocol analysis you can find here: https://christian
 
 On linux, you can already use the great fujiplay tool to get images off these cameras: https://www.imo.universite-paris-saclay.fr/~thierry.bousch/fujiplay.html. 
 
-This tool is still in early development. Currently, it can only list available serial ports and get information about the connected camera model. In the future, extracting images and other functionalities may be added. The goal is to develop a cross-platform tool for the few people still using these cameras!
+This tool is still in early development. Currently, it can only list available serial ports and get information about the connected camera model. 
+We can now download images from the camera as well. This is still very slow and you better use AC adapter as battery consumption is quite high during serial transfer.
+The goal is to develop a cross-platform tool for the few people still using these cameras!

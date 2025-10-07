@@ -9,15 +9,16 @@ import (
 )
 
 type SerialClient struct {
-	Verbose  bool
-	Device   string
-	BaudRate int
-	Port     serial.Port
+	Verbose        bool
+	Device         string
+	BaudRate       int
+	Port           serial.Port
+	DefaultTimeout time.Duration
 }
 
 // NewSerialClient creates a new SerialClient with the specified settings
 func NewSerialClient(verbose bool, device string, baudRate int) *SerialClient {
-	return &SerialClient{Verbose: verbose, Device: device, BaudRate: baudRate}
+	return &SerialClient{Verbose: verbose, Device: device, BaudRate: baudRate, DefaultTimeout: time.Duration(1) * time.Second}
 }
 
 // sendBytes sends raw bytes to the serial port
@@ -74,6 +75,9 @@ func (s *SerialClient) SendMessage(msg message) error {
 	if n != len(msg.data) {
 		return fmt.Errorf("sent %d bytes, expected to send %d bytes", n, len(msg.data))
 	}
+	if s.Verbose {
+		fmt.Printf("Message sent: %s\n", msg.pretty)
+	}
 	return nil
 }
 
@@ -120,7 +124,7 @@ func (s *SerialClient) openCommunication() error {
 	if err != nil {
 		return err
 	}
-	s.Port.SetReadTimeout(time.Duration(1) * time.Second)
+	s.Port.SetReadTimeout(s.DefaultTimeout)
 	if s.Verbose {
 		fmt.Println("Flushing input buffer...")
 	}
@@ -177,7 +181,7 @@ func (s *SerialClient) GetModel() (string, error) {
 		return "", err
 	}
 
-	response, err := s.readPacket(true)
+	response, err := s.readPacket(true, 0)
 	if err != nil {
 		return "", err
 	}
@@ -205,7 +209,7 @@ func (s *SerialClient) CountPictures() (int, error) {
 		return 0, err
 	}
 
-	response, err := s.readPacket(true)
+	response, err := s.readPacket(true, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -215,6 +219,35 @@ func (s *SerialClient) CountPictures() (int, error) {
 		return 0, fmt.Errorf("Parsing issue: %w", err)
 	}
 	return count, nil
+}
+
+func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
+	if s.Verbose {
+		fmt.Println("Initiating communication...")
+	}
+	err := s.initiateCommunication()
+	if err != nil {
+		return nil, err
+	}
+	defer s.Close()
+
+	downloadMsg := GetDownloadPictureMessage(pictureNumber)
+	err = s.SendCommand(downloadMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Port.SetReadTimeout(time.Duration(30) * time.Second)
+	pictureData, err := s.readPacket(true, 4) // Skip the 4 bytes header
+	s.Port.SetReadTimeout(s.DefaultTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.Verbose {
+		fmt.Printf("Downloaded picture %d, size: %d bytes\n", pictureNumber, len(pictureData))
+	}
+	return pictureData, nil
 }
 
 // Close closes the serial port after sending EOT
@@ -231,33 +264,42 @@ func (s *SerialClient) Close() error {
 }
 
 // readPacket reads a packet from the serial port, handling DLE stuffing
-func (s *SerialClient) readPacket(acknowledge bool) ([]byte, error) {
+// set acknowledge to true to send ACK after reading the whole packet (ack is always send after each part of a multi-part packet)
+// set checksumToVerify to true to verify the checksum at the end of the packet
+// TODO refactor the skip bytes part to handle photo downloading and other commands in a better way, because this is very spaghetti
+// TODO set higher baudrate when downloading pictures
+func (s *SerialClient) readPacket(acknowledge bool, skipBytes int) ([]byte, error) {
 	if s.Verbose {
 		fmt.Println("Reading packet...")
 	}
+	startSequence := true
 	port := s.Port
-	firstByte, err := readByte(port)
-	if err != nil {
-		return nil, err
-	}
-	if firstByte != DLE {
-		return nil, fmt.Errorf("expected DLE (0x%02X), got 0x%02X", DLE, firstByte)
-	}
-	if s.Verbose {
-		fmt.Printf("Received DLE (0x%02X)\n", firstByte)
-	}
-	secondByte, err := readByte(port)
-	if err != nil {
-		return nil, err
-	}
-	if secondByte != STX {
-		return nil, fmt.Errorf("expected STX (0x%02X), got 0x%02X", STX, secondByte)
-	}
-	if s.Verbose {
-		fmt.Printf("Received STX (0x%02X)\n", secondByte)
-	}
+	var buffer []byte
 	var data []byte
 	for {
+		if startSequence {
+			firstByte, err := readByte(port)
+			if err != nil {
+				return nil, err
+			}
+			if firstByte != DLE {
+				return nil, fmt.Errorf("expected DLE (0x%02X), got 0x%02X", DLE, firstByte)
+			}
+			if s.Verbose {
+				fmt.Printf("Received DLE (0x%02X)\n", firstByte)
+			}
+			secondByte, err := readByte(port)
+			if err != nil {
+				return nil, err
+			}
+			if secondByte != STX {
+				return nil, fmt.Errorf("expected STX (0x%02X), got 0x%02X", STX, secondByte)
+			}
+			if s.Verbose {
+				fmt.Printf("Received STX (0x%02X)\n", secondByte)
+			}
+			startSequence = false
+		}
 		b, err := readByte(port)
 		if err != nil {
 			return nil, err
@@ -272,44 +314,69 @@ func (s *SerialClient) readPacket(acknowledge bool) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			if nextByte == ETX {
+			if nextByte == ETX || nextByte == ETB {
 				// End of text
 				if s.Verbose {
-					fmt.Printf("Received ETX (0x%02X), end of packet.\n", nextByte)
+					fmt.Printf("Received ETX or ETB (0x%02X)\n", nextByte)
 				}
-				break
+				checksum, err := readByte(port)
+				if err != nil {
+					return nil, err
+				}
+				if s.Verbose {
+					fmt.Printf("Received checksum byte: 0x%02X\n", checksum)
+				}
+				computedChecksum := xor(append(buffer, nextByte))
+				if checksum != computedChecksum {
+					return nil, fmt.Errorf("checksum mismatch: expected 0x%02X, got 0x%02X", computedChecksum, checksum)
+				}
+				// End of packet
+				if nextByte == ETX {
+					if s.Verbose {
+						fmt.Println("End of packet reached with ETX.")
+					}
+					break
+				} else {
+					// ETB, more data will follow
+					if s.Verbose {
+						fmt.Println("End of transmission block reached with ETB, more data will follow.")
+					}
+					// Acknowledge the block
+					err = s.SendMessage(ACK_MSG)
+					if err != nil {
+						return nil, err
+					}
+					startSequence = true
+					data = append(data, buffer[skipBytes:]...) // Skip the 4 bytes header
+					buffer = []byte{}
+				}
 			} else if nextByte == DLE {
 				// Escaped DLE, add one DLE to data
 				if s.Verbose {
 					fmt.Printf("Received escaped DLE (0x%02X), adding to data.\n", nextByte)
 				}
-				data = append(data, DLE)
+				buffer = append(buffer, DLE)
 			} else {
-				//not sure
-				//return nil, fmt.Errorf("unexpected byte after DLE: 0x%02X", nextByte)
-				data = append(data, b)
+				return nil, fmt.Errorf("unexpected byte after DLE: 0x%02X", nextByte)
 			}
 		} else {
 			if s.Verbose {
 				fmt.Printf("Received byte: 0x%02X\n", b)
 			}
 			// Regular byte, add to data
-			data = append(data, b)
+			buffer = append(buffer, b)
 		}
 	}
 	if s.Verbose {
-		fmt.Println("Packet is read. Data: ")
-		for _, b := range data {
-			fmt.Printf("0x%02X ", b)
-		}
-		fmt.Println()
+		fmt.Println("Packet is read.")
 	}
 	if acknowledge {
-		err = s.SendMessage(ACK_MSG)
+		err := s.SendMessage(ACK_MSG)
 		if err != nil {
 			return nil, err
 		}
 	}
+	data = append(data, buffer[skipBytes:]...) // Skip the 4 bytes header
 	return data, nil
 }
 

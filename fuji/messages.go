@@ -11,6 +11,7 @@ const DLE = 0x10 // Data Link Escape, used to indicate special control character
 const STX = 0x02 // Start of Text, initiate the begining of a message
 const ETX = 0x03 // End of Text, indicate the end of a message
 const EOT = 0x04 // End of Transmission, used to terminate communication
+const ETB = 0x17 // End of Transmission Block, meaning more data will follow
 
 type message struct {
 	data   []byte
@@ -41,6 +42,19 @@ func GetParser(verbose bool) Parser {
 func GetEndTextMessageWithChecksum(data []byte) message {
 	msgData := append(END_MSG.data, xor(append(data, ETX)))
 	return message{data: msgData, pretty: "DLE ETX CHECKSUM"}
+}
+
+// GetDownloadPictureMessage returns a message to download a picture by its number
+// Picture number must be between 1 and 65535
+func GetDownloadPictureMessage(pictureNumber int) message {
+	if pictureNumber < 1 || pictureNumber > 65535 {
+		panic("Picture number must be between 1 and 65535")
+	}
+	msgData := []byte{0x00, 0x02, 0x02, 0x00}
+	countBytes := make([]byte, 2)
+	binary.LittleEndian.PutUint16(countBytes, uint16(pictureNumber))
+	msgData = append(msgData, countBytes...)
+	return message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_PICTURE %d", pictureNumber)}
 }
 
 // XOR all the bytes of the data slice
