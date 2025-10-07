@@ -1,6 +1,7 @@
 package fuji
 
 import (
+	"encoding/binary"
 	"fmt"
 )
 
@@ -23,6 +24,7 @@ type Parser struct {
 var ENQUIRY_MSG = message{data: []byte{ENQ}, pretty: "ENQ"}
 var BEGIN_MSG = message{data: []byte{DLE, STX}, pretty: "DLE STX"}
 var GET_CAMERA_VERSION_MSG = message{data: []byte{0x00, 0x09, 0x00, 0x00}, pretty: "GET_CAMERA_VERSION"}
+var COUNT_PICTURES_MSG = message{data: []byte{0x00, 0x0B, 0x00, 0x00}, pretty: "COUNT_PICTURES"}
 var END_MSG = message{data: []byte{DLE, ETX}, pretty: "DLE ETX"}
 var ACK_MSG = message{data: []byte{ACK}, pretty: "ACK"}
 var END_OF_COMMUNICATION_MSG = message{data: []byte{EOT}, pretty: "EOT"}
@@ -69,4 +71,17 @@ func (p Parser) ParseCameraVersionPacket(data []byte) (string, error) {
 		fmt.Printf("Camera model: %s\n", model)
 	}
 	return model, nil
+}
+
+// Parse the response data from COUNT_PICTURES command
+func (p Parser) ParseCountPicturesPacket(data []byte) (int, error) {
+	if p.verbose {
+		fmt.Printf("Raw response to parse as count pictures packet: % X\n", data)
+		fmt.Println("Format should be 0x00 0x06 0x02 0x00 COUNT COUNT")
+	}
+	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x06 || data[2] != 0x02 || data[3] != 0x00 {
+		return 0, fmt.Errorf("Malformated message")
+	}
+	count := binary.LittleEndian.Uint16(data[4:6])
+	return int(count), nil
 }

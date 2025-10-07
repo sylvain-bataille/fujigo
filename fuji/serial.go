@@ -189,6 +189,35 @@ func (s *SerialClient) GetModel() (string, error) {
 	return model, nil
 }
 
+// CountPictures returns the number of pictures stored on the camera
+func (s *SerialClient) CountPictures() (int, error) {
+	if s.Verbose {
+		fmt.Println("Initiating communication...")
+	}
+	err := s.initiateCommunication()
+	if err != nil {
+		return 0, err
+	}
+	defer s.Close()
+
+	err = s.SendCommand(COUNT_PICTURES_MSG)
+	if err != nil {
+		return 0, err
+	}
+
+	response, err := s.readPacket(true)
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := GetParser(s.Verbose).ParseCountPicturesPacket(response)
+	if err != nil {
+		return 0, fmt.Errorf("Parsing issue: %w", err)
+	}
+	return count, nil
+}
+
+// Close closes the serial port after sending EOT
 func (s *SerialClient) Close() error {
 	err := s.SendMessage(END_OF_COMMUNICATION_MSG)
 	if err != nil {
@@ -201,6 +230,7 @@ func (s *SerialClient) Close() error {
 	return nil
 }
 
+// readPacket reads a packet from the serial port, handling DLE stuffing
 func (s *SerialClient) readPacket(acknowledge bool) ([]byte, error) {
 	if s.Verbose {
 		fmt.Println("Reading packet...")
@@ -283,6 +313,7 @@ func (s *SerialClient) readPacket(acknowledge bool) ([]byte, error) {
 	return data, nil
 }
 
+// readByte reads a single byte from the serial port with timeout handling
 func readByte(port serial.Port) (byte, error) {
 	buff := make([]byte, 1)
 	n, err := port.Read(buff)
