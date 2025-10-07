@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/sylvain-bataille/fujigo/fuji"
 )
 
 // getModelCmd represents the get-model command
@@ -10,7 +9,16 @@ var getModelCmd = &cobra.Command{
 	Use:   "get-model",
 	Short: "Get information about the connected camera model",
 	Run: func(cmd *cobra.Command, args []string) {
-		fuji.GetModel()
+		model, err := getSerialClient().GetModel()
+		if err != nil {
+			cmd.PrintErr(err)
+			return
+		}
+		if model == "" {
+			cmd.Println("No model information received")
+			return
+		}
+		cmd.Println("Camera model:", model)
 	},
 }
 

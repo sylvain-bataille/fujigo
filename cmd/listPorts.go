@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/sylvain-bataille/fujigo/fuji"
 )
 
 // listPortsCmd represents the listPorts command
@@ -10,7 +9,7 @@ var listPortsCmd = &cobra.Command{
 	Use:   "list-ports",
 	Short: "List available serial ports",
 	Run: func(cmd *cobra.Command, args []string) {
-		ports, err := fuji.ListPorts()
+		ports, err := getSerialClient().ListPorts()
 		if err != nil {
 			cmd.PrintErrln("Error listing ports:", err)
 			return

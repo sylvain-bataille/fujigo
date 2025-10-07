@@ -1,0 +1,72 @@
+package fuji
+
+import (
+	"fmt"
+)
+
+const ENQ = 0x05 // Enquiry, used to initiate communication
+const ACK = 0x06 // Acknowledge, used to acknowledge receipt of a message
+const DLE = 0x10 // Data Link Escape, used to indicate special control characters
+const STX = 0x02 // Start of Text, initiate the begining of a message
+const ETX = 0x03 // End of Text, indicate the end of a message
+const EOT = 0x04 // End of Transmission, used to terminate communication
+
+type message struct {
+	data   []byte
+	pretty string
+}
+
+type Parser struct {
+	verbose bool
+}
+
+var ENQUIRY_MSG = message{data: []byte{ENQ}, pretty: "ENQ"}
+var BEGIN_MSG = message{data: []byte{DLE, STX}, pretty: "DLE STX"}
+var GET_CAMERA_VERSION_MSG = message{data: []byte{0x00, 0x09, 0x00, 0x00}, pretty: "GET_CAMERA_VERSION"}
+var END_MSG = message{data: []byte{DLE, ETX}, pretty: "DLE ETX"}
+var ACK_MSG = message{data: []byte{ACK}, pretty: "ACK"}
+var END_OF_COMMUNICATION_MSG = message{data: []byte{EOT}, pretty: "EOT"}
+
+// GetParser instantiate a Parser
+func GetParser(verbose bool) Parser {
+	return Parser{
+		verbose: verbose,
+	}
+}
+
+// GetEndTextMessageWithChecksum returns a 3 bytes message formated as : DLE ETX CHECKSUM
+// Checksum is calculated from the data previously sent and ETX byte
+func GetEndTextMessageWithChecksum(data []byte) message {
+	msgData := append(END_MSG.data, xor(append(data, ETX)))
+	return message{data: msgData, pretty: "DLE ETX CHECKSUM"}
+}
+
+// XOR all the bytes of the data slice
+func xor(data []byte) byte {
+	var result byte = 0
+	for _, b := range data {
+		result ^= b
+	}
+	return result
+}
+
+// Parse the response data from GET_CAMERA_VERSION command
+func (p Parser) ParseCameraVersionPacket(data []byte) (string, error) {
+	if p.verbose {
+		fmt.Printf("Raw response to parse as camera version packet: % X\n", data)
+		fmt.Println("Format should be 0x00 0x05 LENGTH 0x00 DATA")
+	}
+	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x05 || data[3] != 0x00 {
+		return "", fmt.Errorf("Malformated message")
+	}
+	length := int(data[2])
+	if length == 0 {
+		return "", nil
+	}
+	model := string(data[4 : 4+length])
+	if p.verbose {
+		fmt.Printf("Data length: %d\n", length)
+		fmt.Printf("Camera model: %s\n", model)
+	}
+	return model, nil
+}

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/sylvain-bataille/fujigo/fuji"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -35,7 +36,21 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("verbose", "v", false, "verbose output ... to be implemented")
-	rootCmd.Flags().BoolP("device", "d", false, "the serial device to use (e.g., /dev/ttyUSB0 or COM3) ... to be implemented")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().StringP("device", "d", "/dev/ttyUSB0", "the serial device to use (e.g., /dev/ttyUSB0 or COM3)")
 
+}
+
+func getDevice() string {
+	device, _ := rootCmd.Flags().GetString("device")
+	return device
+}
+
+func isVerbose() bool {
+	verbose, _ := rootCmd.Flags().GetBool("verbose")
+	return verbose
+}
+
+func getSerialClient() *fuji.SerialClient {
+	return fuji.NewSerialClient(isVerbose(), getDevice(), 9600)
 }
