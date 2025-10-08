@@ -13,6 +13,20 @@ const ETX = 0x03 // End of Text, indicate the end of a message
 const EOT = 0x04 // End of Transmission, used to terminate communication
 const ETB = 0x17 // End of Transmission Block, meaning more data will follow
 
+type BaudRate int8
+
+const (
+	BAUD_9600   BaudRate = 0x00
+	BAUD_12000  BaudRate = 0x01
+	BAUD_14400  BaudRate = 0x02
+	BAUD_16800  BaudRate = 0x03
+	BAUD_19200  BaudRate = 0x04
+	BAUD_28800  BaudRate = 0x05
+	BAUD_38400  BaudRate = 0x06
+	BAUD_57600  BaudRate = 0x07
+	BAUD_115200 BaudRate = 0x08
+)
+
 type message struct {
 	data   []byte
 	pretty string
@@ -55,6 +69,37 @@ func GetDownloadPictureMessage(pictureNumber int) message {
 	binary.LittleEndian.PutUint16(countBytes, uint16(pictureNumber))
 	msgData = append(msgData, countBytes...)
 	return message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_PICTURE %d", pictureNumber)}
+}
+
+// GetSetBaudrateMessage returns a message to set the baudrate of the camera
+func GetSetBaudrateMessage(baudRate BaudRate) message {
+	msgData := []byte{0x01, 0x07, 0x01, 0x00, byte(baudRate)}
+	return message{data: msgData, pretty: fmt.Sprintf("SET_BAUDRATE %d", baudRate)}
+}
+
+func GetBaudRateAsInt(baudRate BaudRate) int {
+	switch baudRate {
+	case BAUD_9600:
+		return 9600
+	case BAUD_12000:
+		return 12000
+	case BAUD_14400:
+		return 14400
+	case BAUD_16800:
+		return 16800
+	case BAUD_19200:
+		return 19200
+	case BAUD_28800:
+		return 28800
+	case BAUD_38400:
+		return 38400
+	case BAUD_57600:
+		return 57600
+	case BAUD_115200:
+		return 115200
+	default:
+		return 9600
+	}
 }
 
 // XOR all the bytes of the data slice

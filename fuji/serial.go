@@ -125,10 +125,10 @@ func (s *SerialClient) openCommunication() error {
 		return err
 	}
 	s.Port.SetReadTimeout(s.DefaultTimeout)
-	if s.Verbose {
-		fmt.Println("Flushing input buffer...")
-	}
-	err = s.Port.ResetInputBuffer()
+	// if s.Verbose {
+	// 	fmt.Println("Flushing input buffer...")
+	// }
+	// err = s.Port.ResetInputBuffer()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -222,10 +222,16 @@ func (s *SerialClient) CountPictures() (int, error) {
 }
 
 func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
+	// Set higher baudrate for faster download
+	err := s.setBaudRate(BAUD_115200)
+	if err != nil {
+		return nil, err
+	}
+
 	if s.Verbose {
 		fmt.Println("Initiating communication...")
 	}
-	err := s.initiateCommunication()
+	err = s.initiateCommunication()
 	if err != nil {
 		return nil, err
 	}
@@ -250,15 +256,70 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	return pictureData, nil
 }
 
+func (s *SerialClient) setBaudRate(baudRate BaudRate) error {
+	if s.Verbose {
+		fmt.Println("Initiating communication...")
+	}
+	err := s.initiateCommunication()
+	if err != nil {
+		return err
+	}
+
+	if s.Verbose {
+		fmt.Printf("Setting baudrate to %d...\n", baudRate)
+	}
+	var baudRateMsg = GetSetBaudrateMessage(baudRate)
+	err = s.SendCommand(baudRateMsg)
+	if err != nil {
+		return err
+	}
+	response, err := s.readPacket(true, 0)
+	if err != nil {
+		return err
+	}
+	if s.Verbose {
+		fmt.Printf("Response to set baudrate: % X\n", response)
+	}
+	//s.Close()
+	s.BaudRate = GetBaudRateAsInt(baudRate)
+
+	//Sleep 1 second to ensure the camera is ready
+	time.Sleep(100 * time.Millisecond)
+	// err = s.SendMessage(END_OF_COMMUNICATION_MSG)
+	// if err != nil {
+	// 	fmt.Println("Error sending EOT:", err)
+	// }
+
+	//Sleep 5 seconds to ensure the message is sent before closing the port
+	// s.Port.Drain()
+	// time.Sleep(1 * time.Second)
+	// if s.Verbose {
+	// 	fmt.Println("Closing port...")
+	// }
+
+	// s.Port.Close()
+
+	//Send ENQ again to re-initiate communication at new baudrate
+	s.Close()
+	// s.Port.Drain()
+	// s.Port.Close()
+
+	return nil
+
+}
+
 // Close closes the serial port after sending EOT
 func (s *SerialClient) Close() error {
 	err := s.SendMessage(END_OF_COMMUNICATION_MSG)
 	if err != nil {
 		fmt.Println("Error sending EOT:", err)
 	}
+	//Sleep 5 seconds to ensure the message is sent before closing the port
+	s.Port.Drain()
 	if s.Verbose {
 		fmt.Println("Closing port...")
 	}
+
 	s.Port.Close()
 	return nil
 }

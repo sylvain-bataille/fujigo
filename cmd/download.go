@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -24,7 +25,9 @@ var downloadCmd = &cobra.Command{
 			cmd.PrintErr("Invalid image number. It must be between 1 and 65535.\n")
 			return
 		}
+		start := time.Now()
 		data, err := getSerialClient().DownloadPicture(imageNumber)
+		end := time.Now()
 		if err != nil {
 			cmd.PrintErr(err)
 			return
@@ -34,7 +37,7 @@ var downloadCmd = &cobra.Command{
 			return
 		}
 		// Print data bytes
-		cmd.Printf("Data bytes: %X\n", data)
+		//cmd.Printf("Data bytes: %X\n", data)
 		// Save to file
 		filename := fmt.Sprintf("image_%d.jpg", imageNumber)
 		err = saveToFile(filename, data)
@@ -42,6 +45,9 @@ var downloadCmd = &cobra.Command{
 			cmd.PrintErr(err)
 			return
 		}
+		// Print time taken
+		duration := end.Sub(start)
+		cmd.Printf("Downloaded %d bytes in %v (%.2f KB/s)\n", len(data), duration, float64(len(data))/duration.Seconds()/1024)
 		cmd.Printf("Picture %d saved to %s\n", imageNumber, filename)
 	},
 }
