@@ -1,0 +1,54 @@
+name: Build executables and create release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.2
+      - name: Display Go version
+        run: go version  
+      - name: version
+        run: echo "::set-output name=version::$(cat version.txt)"
+        id: version            
+      - name: Make build
+        run: |
+          make
+      - name: release
+        uses: actions/create-release@v1
+        id: create_release
+        with:
+          draft: false
+          prerelease: false
+          release_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}     
+        env:
+          GITHUB_TOKEN: ${{ github.token }}          
+      - name: upload bin linux
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./fujigo
+          asset_name: fujigo
+          asset_content_type: application/octet-stream           
+      - name: upload bin windows
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./fujigo.exe
+          asset_name: fujigo.exe
+          asset_content_type: application/octet-stream      
