@@ -15,8 +15,11 @@ var downloadCmd = &cobra.Command{
 	Short: "Download pictures from the camera",
 	Long: `Downloads pictures from the camera by image number or all images.
 	The first image is number 1. 
-	Use count command to see how many images are available.`,
-	Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Use count command to see how many images are available.
+	Example to download image number 3: fujigo download 3
+	Example to download all images: fujigo download all`,
+	ValidArgs: []string{"all"},
+	Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	Run: func(cmd *cobra.Command, args []string) {
 		serialClient := getSerialClient()
 		count, error := serialClient.CountPictures()
