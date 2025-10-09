@@ -27,7 +27,7 @@ const (
 	BAUD_115200 BaudRate = 0x08
 )
 
-type message struct {
+type Message struct {
 	data   []byte
 	pretty string
 }
@@ -36,13 +36,13 @@ type Parser struct {
 	verbose bool
 }
 
-var ENQUIRY_MSG = message{data: []byte{ENQ}, pretty: "ENQ"}
-var BEGIN_MSG = message{data: []byte{DLE, STX}, pretty: "DLE STX"}
-var GET_CAMERA_VERSION_MSG = message{data: []byte{0x00, 0x09, 0x00, 0x00}, pretty: "GET_CAMERA_VERSION"}
-var COUNT_PICTURES_MSG = message{data: []byte{0x00, 0x0B, 0x00, 0x00}, pretty: "COUNT_PICTURES"}
-var END_MSG = message{data: []byte{DLE, ETX}, pretty: "DLE ETX"}
-var ACK_MSG = message{data: []byte{ACK}, pretty: "ACK"}
-var END_OF_COMMUNICATION_MSG = message{data: []byte{EOT}, pretty: "EOT"}
+var ENQUIRY_MSG = Message{data: []byte{ENQ}, pretty: "ENQ"}
+var BEGIN_MSG = Message{data: []byte{DLE, STX}, pretty: "DLE STX"}
+var GET_CAMERA_VERSION_MSG = Message{data: []byte{0x00, 0x09, 0x00, 0x00}, pretty: "GET_CAMERA_VERSION"}
+var COUNT_PICTURES_MSG = Message{data: []byte{0x00, 0x0B, 0x00, 0x00}, pretty: "COUNT_PICTURES"}
+var END_MSG = Message{data: []byte{DLE, ETX}, pretty: "DLE ETX"}
+var ACK_MSG = Message{data: []byte{ACK}, pretty: "ACK"}
+var END_OF_COMMUNICATION_MSG = Message{data: []byte{EOT}, pretty: "EOT"}
 
 // GetParser instantiate a Parser
 func GetParser(verbose bool) Parser {
@@ -51,16 +51,16 @@ func GetParser(verbose bool) Parser {
 	}
 }
 
-// GetEndTextMessageWithChecksum returns a 3 bytes message formated as : DLE ETX CHECKSUM
+// BuildEndTextMessageWithChecksum returns a 3 bytes message formated as : DLE ETX CHECKSUM
 // Checksum is calculated from the data previously sent and ETX byte
-func GetEndTextMessageWithChecksum(data []byte) message {
+func BuildEndTextMessageWithChecksum(data []byte) Message {
 	msgData := append(END_MSG.data, xor(append(data, ETX)))
-	return message{data: msgData, pretty: "DLE ETX CHECKSUM"}
+	return Message{data: msgData, pretty: "DLE ETX CHECKSUM"}
 }
 
-// GetDownloadPictureMessage returns a message to download a picture by its number
+// BuildDownloadPictureMessage returns a message to download a picture by its number
 // Picture number must be between 1 and 65535
-func GetDownloadPictureMessage(pictureNumber int) message {
+func BuildDownloadPictureMessage(pictureNumber int) Message {
 	if pictureNumber < 1 || pictureNumber > 65535 {
 		panic("Picture number must be between 1 and 65535")
 	}
@@ -68,15 +68,16 @@ func GetDownloadPictureMessage(pictureNumber int) message {
 	countBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(countBytes, uint16(pictureNumber))
 	msgData = append(msgData, countBytes...)
-	return message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_PICTURE %d", pictureNumber)}
+	return Message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_PICTURE %d", pictureNumber)}
 }
 
-// GetSetBaudrateMessage returns a message to set the baudrate of the camera
-func GetSetBaudrateMessage(baudRate BaudRate) message {
+// BuildSetBaudrateMessage returns a message to set the baudrate of the camera
+func BuildSetBaudrateMessage(baudRate BaudRate) Message {
 	msgData := []byte{0x01, 0x07, 0x01, 0x00, byte(baudRate)}
-	return message{data: msgData, pretty: fmt.Sprintf("SET_BAUDRATE %d", baudRate)}
+	return Message{data: msgData, pretty: fmt.Sprintf("SET_BAUDRATE %d", baudRate)}
 }
 
+// GetBaudRateAsInt converts a BaudRate constant to its integer value
 func GetBaudRateAsInt(baudRate BaudRate) int {
 	switch baudRate {
 	case BAUD_9600:
@@ -100,47 +101,4 @@ func GetBaudRateAsInt(baudRate BaudRate) int {
 	default:
 		return 9600
 	}
-}
-
-// XOR all the bytes of the data slice
-func xor(data []byte) byte {
-	var result byte = 0
-	for _, b := range data {
-		result ^= b
-	}
-	return result
-}
-
-// Parse the response data from GET_CAMERA_VERSION command
-func (p Parser) ParseCameraVersionPacket(data []byte) (string, error) {
-	if p.verbose {
-		fmt.Printf("Raw response to parse as camera version packet: % X\n", data)
-		fmt.Println("Format should be 0x00 0x05 LENGTH 0x00 DATA")
-	}
-	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x05 || data[3] != 0x00 {
-		return "", fmt.Errorf("Malformated message")
-	}
-	length := int(data[2])
-	if length == 0 {
-		return "", nil
-	}
-	model := string(data[4 : 4+length])
-	if p.verbose {
-		fmt.Printf("Data length: %d\n", length)
-		fmt.Printf("Camera model: %s\n", model)
-	}
-	return model, nil
-}
-
-// Parse the response data from COUNT_PICTURES command
-func (p Parser) ParseCountPicturesPacket(data []byte) (int, error) {
-	if p.verbose {
-		fmt.Printf("Raw response to parse as count pictures packet: % X\n", data)
-		fmt.Println("Format should be 0x00 0x06 0x02 0x00 COUNT COUNT")
-	}
-	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x06 || data[2] != 0x02 || data[3] != 0x00 {
-		return 0, fmt.Errorf("Malformated message")
-	}
-	count := binary.LittleEndian.Uint16(data[4:6])
-	return int(count), nil
 }

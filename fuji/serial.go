@@ -8,6 +8,14 @@ import (
 	"go.bug.st/serial"
 )
 
+// SerialClient represents a client for serial communication with the camera
+// It holds configuration settings and the serial port instance
+// Parameters:
+//   - Verbose enables detailed logging
+//   - Device is the serial port device (e.g., /dev/ttyUSB0 or COM3)
+//   - BaudRate is the communication speed (e.g., 9600, 115200)
+//   - Port is the opened serial port instance
+//   - DefaultTimeout is the read timeout duration
 type SerialClient struct {
 	Verbose        bool
 	Device         string
@@ -19,6 +27,21 @@ type SerialClient struct {
 // NewSerialClient creates a new SerialClient with the specified settings
 func NewSerialClient(verbose bool, device string, baudRate int) *SerialClient {
 	return &SerialClient{Verbose: verbose, Device: device, BaudRate: baudRate, DefaultTimeout: time.Duration(1) * time.Second}
+}
+
+// setBaudrateSetting sets the baudrate setting of the SerialClient and pauses for 100ms
+func (s *SerialClient) setBaudrateSetting(baudRate int) error {
+	if s.Verbose {
+		fmt.Printf("Resetting baudrate to %d...\n", baudRate)
+	}
+	s.BaudRate = baudRate
+	s.pause()
+	return nil
+}
+
+// pause pauses execution for 100 milliseconds
+func (s *SerialClient) pause() {
+	time.Sleep(100 * time.Millisecond)
 }
 
 // sendBytes sends raw bytes to the serial port
@@ -33,21 +56,21 @@ func (s *SerialClient) sendBytes(data []byte) (int, error) {
 	return n, nil
 }
 
-// send a command, which is a message encapsulated between delimitation messages
-// once the command is sent completely, the function wait for ACK
-func (s *SerialClient) SendCommand(msg message) error {
+// sendCommand sends a complete command sequence: DLE STX, data message, DLE ETX CHECKSUM
+// and waits for ACK
+func (s *SerialClient) sendCommand(msg Message) error {
 	// Send DLE STX to indicate start of text
-	err := s.SendMessage(BEGIN_MSG)
+	err := s.sendMessage(BEGIN_MSG)
 	if err != nil {
 		return err
 	}
 	// Send data message
-	err = s.SendMessage(msg)
+	err = s.sendMessage(msg)
 	if err != nil {
 		return err
 	}
 	// Send DLE ETX and checksum
-	err = s.SendMessage(GetEndTextMessageWithChecksum(msg.data))
+	err = s.sendMessage(BuildEndTextMessageWithChecksum(msg.data))
 	if err != nil {
 		return err
 	}
@@ -59,7 +82,8 @@ func (s *SerialClient) SendCommand(msg message) error {
 	return nil
 }
 
-func (s *SerialClient) SendMessage(msg message) error {
+// sendMessage sends a raw message to the serial port and logs it if verbose is enabled
+func (s *SerialClient) sendMessage(msg Message) error {
 	if s.Verbose {
 		fmt.Printf("Sending message: ")
 		for _, b := range msg.data {
@@ -81,6 +105,7 @@ func (s *SerialClient) SendMessage(msg message) error {
 	return nil
 }
 
+// waitForACK waits for an ACK byte from the serial port
 func (s *SerialClient) waitForACK() error {
 	// Wait for ACK
 	if s.Verbose {
@@ -125,10 +150,10 @@ func (s *SerialClient) openCommunication() error {
 		return err
 	}
 	s.Port.SetReadTimeout(s.DefaultTimeout)
-	// if s.Verbose {
-	// 	fmt.Println("Flushing input buffer...")
-	// }
-	// err = s.Port.ResetInputBuffer()
+	if s.Verbose {
+		fmt.Println("Flushing input buffer...")
+	}
+	err = s.Port.ResetInputBuffer()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -142,7 +167,7 @@ func (s *SerialClient) initiateCommunication() error {
 	if err != nil {
 		return err
 	}
-	err = s.SendMessage(ENQUIRY_MSG)
+	err = s.sendMessage(ENQUIRY_MSG)
 	err = s.waitForACK()
 	if err != nil {
 		return err
@@ -176,12 +201,12 @@ func (s *SerialClient) GetModel() (string, error) {
 	}
 	defer s.Close()
 
-	err = s.SendCommand(GET_CAMERA_VERSION_MSG)
+	err = s.sendCommand(GET_CAMERA_VERSION_MSG)
 	if err != nil {
 		return "", err
 	}
 
-	response, err := s.readPacket(true, 0)
+	response, err := s.readPacket(true, defaultPacketParser{})
 	if err != nil {
 		return "", err
 	}
@@ -204,12 +229,12 @@ func (s *SerialClient) CountPictures() (int, error) {
 	}
 	defer s.Close()
 
-	err = s.SendCommand(COUNT_PICTURES_MSG)
+	err = s.sendCommand(COUNT_PICTURES_MSG)
 	if err != nil {
 		return 0, err
 	}
 
-	response, err := s.readPacket(true, 0)
+	response, err := s.readPacket(true, defaultPacketParser{})
 	if err != nil {
 		return 0, err
 	}
@@ -221,19 +246,7 @@ func (s *SerialClient) CountPictures() (int, error) {
 	return count, nil
 }
 
-func (s *SerialClient) setBaudrateSetting(baudRate int) error {
-	if s.Verbose {
-		fmt.Printf("Resetting baudrate to %d...\n", baudRate)
-	}
-	s.BaudRate = baudRate
-	s.pause()
-	return nil
-}
-
-func (s *SerialClient) pause() {
-	time.Sleep(100 * time.Millisecond)
-}
-
+// DownloadPicture downloads a picture by its number (1 to 65535) and returns the raw JPEG data
 func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	// Set higher baudrate for faster download
 	initialBaudRate := s.BaudRate
@@ -252,14 +265,14 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	defer s.Close()
 	defer s.setBaudrateSetting(initialBaudRate)
 
-	downloadMsg := GetDownloadPictureMessage(pictureNumber)
-	err = s.SendCommand(downloadMsg)
+	downloadMsg := BuildDownloadPictureMessage(pictureNumber)
+	err = s.sendCommand(downloadMsg)
 	if err != nil {
 		return nil, err
 	}
 
 	s.Port.SetReadTimeout(time.Duration(30) * time.Second)
-	pictureData, err := s.readPacket(true, 4) // Skip the 4 bytes header
+	pictureData, err := s.readPacket(true, picturePacketParser{})
 	s.Port.SetReadTimeout(s.DefaultTimeout)
 	if err != nil {
 		return nil, err
@@ -284,12 +297,12 @@ func (s *SerialClient) setBaudRate(baudRate BaudRate) error {
 	if s.Verbose {
 		fmt.Printf("Setting baudrate to %d...\n", baudRate)
 	}
-	var baudRateMsg = GetSetBaudrateMessage(baudRate)
-	err = s.SendCommand(baudRateMsg)
+	var baudRateMsg = BuildSetBaudrateMessage(baudRate)
+	err = s.sendCommand(baudRateMsg)
 	if err != nil {
 		return err
 	}
-	response, err := s.readPacket(true, 0)
+	response, err := s.readPacket(true, defaultPacketParser{})
 	if err != nil {
 		return err
 	}
@@ -325,7 +338,7 @@ func (s *SerialClient) setBaudRate(baudRate BaudRate) error {
 
 // Close closes the serial port after sending EOT
 func (s *SerialClient) Close() error {
-	err := s.SendMessage(END_OF_COMMUNICATION_MSG)
+	err := s.sendMessage(END_OF_COMMUNICATION_MSG)
 	if err != nil {
 		fmt.Println("Error sending EOT:", err)
 	}
@@ -344,7 +357,7 @@ func (s *SerialClient) Close() error {
 // set checksumToVerify to true to verify the checksum at the end of the packet
 // TODO refactor the skip bytes part to handle photo downloading and other commands in a better way, because this is very spaghetti
 // TODO set higher baudrate when downloading pictures
-func (s *SerialClient) readPacket(acknowledge bool, skipBytes int) ([]byte, error) {
+func (s *SerialClient) readPacket(acknowledge bool, parser packetParser) ([]byte, error) {
 	if s.Verbose {
 		fmt.Println("Reading packet...")
 	}
@@ -418,12 +431,16 @@ func (s *SerialClient) readPacket(acknowledge bool, skipBytes int) ([]byte, erro
 						fmt.Println("End of transmission block reached with ETB, more data will follow.")
 					}
 					// Acknowledge the block
-					err = s.SendMessage(ACK_MSG)
+					err = s.sendMessage(ACK_MSG)
 					if err != nil {
 						return nil, err
 					}
 					startSequence = true
-					data = append(data, buffer[skipBytes:]...) // Skip the 4 bytes header
+					buffer, err = parser.Parse(buffer)
+					if err != nil {
+						return nil, err
+					}
+					data = append(data, buffer...)
 					buffer = []byte{}
 				}
 			} else if nextByte == DLE {
@@ -447,12 +464,16 @@ func (s *SerialClient) readPacket(acknowledge bool, skipBytes int) ([]byte, erro
 		fmt.Println("Packet is read.")
 	}
 	if acknowledge {
-		err := s.SendMessage(ACK_MSG)
+		err := s.sendMessage(ACK_MSG)
 		if err != nil {
 			return nil, err
 		}
 	}
-	data = append(data, buffer[skipBytes:]...) // Skip the 4 bytes header
+	buffer, err := parser.Parse(buffer)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, buffer...) // Skip the 4 bytes header
 	return data, nil
 }
 

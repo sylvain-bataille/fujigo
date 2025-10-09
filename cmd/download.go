@@ -6,22 +6,20 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/sylvain-bataille/fujigo/fuji"
 )
 
 // downloadCmd represents the download command
 var downloadCmd = &cobra.Command{
-	Use:   "download",
+	Use:   "download [image_number|all]",
 	Short: "Download pictures from the camera",
-	Long:  `Usage: fujigo download [image_number|all] - Downloads pictures from the camera by image number or all images.`,
-	Args:  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Long: `Downloads pictures from the camera by image number or all images.
+	The first image is number 1. 
+	Use count command to see how many images are available.`,
+	Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	Run: func(cmd *cobra.Command, args []string) {
-		imageNumber := 0
-		if len(args) != 1 {
-			cmd.PrintErr("Please provide exactly one argument: image number or 'all'.\n")
-			return
-		}
-		photos := []int{}
-		count, error := getSerialClient().CountPictures()
+		serialClient := getSerialClient()
+		count, error := serialClient.CountPictures()
 		if error != nil {
 			cmd.PrintErr(error)
 			return
@@ -30,45 +28,67 @@ var downloadCmd = &cobra.Command{
 			cmd.Println("No pictures found on the camera.")
 			return
 		}
-		if args[0] == "all" {
-			for i := 1; i <= count; i++ {
-				photos = append(photos, i)
-			}
-		} else {
-			_, err := fmt.Sscanf(args[0], "%d", &imageNumber)
-			if err != nil || imageNumber < 1 || imageNumber > 65535 {
-				cmd.PrintErr("Invalid image number. It must be between 1 and 65535.\n")
-				return
-			}
-			photos = append(photos, imageNumber)
+		selectedImages, err := getSelectedImages(args, count)
+		if err != nil {
+			cmd.PrintErr(err)
+			return
 		}
-		serialClient := getSerialClient()
-		for _, imgNum := range photos {
-			cmd.Printf("Downloading picture %d...\n", imgNum)
-			start := time.Now()
-			data, err := serialClient.DownloadPicture(imgNum)
-			end := time.Now()
-			if err != nil {
-				cmd.PrintErr(err)
-				return
-			}
-			if len(data) == 0 {
-				cmd.Println("No data received for the picture.")
-				return
-			}
-			filename := fmt.Sprintf("image_%d.jpg", imgNum)
-			err = saveToFile(filename, data)
-			if err != nil {
-				cmd.PrintErr(err)
-				return
-			}
-			duration := end.Sub(start)
-			cmd.Printf("Downloaded %d bytes in %v (%.2f KB/s)\n", len(data), duration, float64(len(data))/duration.Seconds()/1024)
-			cmd.Printf("Picture %d saved to %s\n", imgNum, filename)
-		}
+		saveAllImagesToFile(selectedImages, serialClient, cmd)
 	},
 }
 
+// getSelectedImages parses the command line arguments to determine which images to download.
+// Parameters are the command line arguments and the total count of images available.
+// It returns a slice of image numbers to download or an error if the input is invalid.
+func getSelectedImages(args []string, count int) ([]int, error) {
+	imgNumberArg := 0
+	selectedImages := []int{}
+	if len(args) != 1 {
+		return nil, fmt.Errorf("Please provide exactly one argument: image number or 'all'.")
+	}
+	if args[0] == "all" {
+		for i := 1; i <= count; i++ {
+			selectedImages = append(selectedImages, i)
+		}
+	} else {
+		_, err := fmt.Sscanf(args[0], "%d", &imgNumberArg)
+		if err != nil || imgNumberArg < 1 || imgNumberArg > 65535 {
+			return nil, fmt.Errorf("Invalid image number. It must be between 1 and 65535.")
+		}
+		selectedImages = append(selectedImages, imgNumberArg)
+	}
+	return selectedImages, nil
+}
+
+// saveAllImagesToFile downloads and saves all selected images to files.
+func saveAllImagesToFile(selectedImages []int, serialClient *fuji.SerialClient, cmd *cobra.Command) {
+	for _, imgNum := range selectedImages {
+		cmd.Printf("Downloading picture %d...\n", imgNum)
+		start := time.Now()
+		data, err := serialClient.DownloadPicture(imgNum)
+		end := time.Now()
+		if err != nil {
+			cmd.PrintErr(err)
+			return
+		}
+		if len(data) == 0 {
+			cmd.Println("No data received for the picture.")
+			return
+		}
+		filename := fmt.Sprintf("image_%d.jpg", imgNum)
+		err = saveToFile(filename, data)
+		if err != nil {
+			cmd.PrintErr(err)
+			return
+		}
+		duration := end.Sub(start)
+		cmd.Printf("Downloaded %d bytes in %.2f seconds (%.2f KB/s)\n", len(data), duration.Seconds(), float64(len(data))/duration.Seconds()/1024)
+		cmd.Printf("Picture %d saved to %s\n", imgNum, filename)
+	}
+}
+
+// saveToFile saves the given data to a file with the specified filename.
+// file is located in the current working directory.
 func saveToFile(filename string, data []byte) error {
 	err := os.WriteFile(filename, data, 0644)
 	if err != nil {

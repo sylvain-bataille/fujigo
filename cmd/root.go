@@ -12,10 +12,7 @@ var rootCmd = &cobra.Command{
 	Use:   "fujigo",
 	Short: "Fujigo is a CLI tool to interact with old Fujifilm cameras over serial",
 	Long: `This application is a tool to interact with old Fujifilm cameras over serial.
-	It currently supports listing available serial ports and getting information about the connected camera model.
-	In the future, extracting images and other functionalities may be added.
-	With the difficulty to read some SmartMedia cards on modern computers, this tool aims to provide an alternative way to access images stored on these cameras.
-	This tool is based on this protocol analysis:  https://christian1.tripod.com/FujiMX.html, and older linux tool Fujiplay.`,
+	It currently supports to list serial ports, print camera info, count and download pictures.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
