@@ -6,12 +6,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var CmdVersion = ""
+
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of fujigo",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("version called")
+		fmt.Println("fujigo version " + CmdVersion)
 	},
 }
 

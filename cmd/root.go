@@ -12,10 +12,7 @@ var rootCmd = &cobra.Command{
 	Use:   "fujigo",
 	Short: "Fujigo is a CLI tool to interact with old Fujifilm cameras over serial",
 	Long: `This application is a tool to interact with old Fujifilm cameras over serial.
-	It currently supports listing available serial ports and getting information about the connected camera model.
-	In the future, extracting images and other functionalities may be added.
-	With the difficulty to read some SmartMedia cards on modern computers, this tool aims to provide an alternative way to access images stored on these cameras.
-	This tool is based on this protocol analysis:  https://christian1.tripod.com/FujiMX.html, and older linux tool Fujiplay.`,
+	It currently supports to list serial ports, print camera info, count and download pictures.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -36,7 +33,7 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().CountP("verbose", "v", "verbose output (add multiple times for more verbosity : v or vv)")
 	rootCmd.PersistentFlags().StringP("device", "d", "/dev/ttyUSB0", "the serial device to use (e.g., /dev/ttyUSB0 or COM3)")
 
 }
@@ -46,11 +43,11 @@ func getDevice() string {
 	return device
 }
 
-func isVerbose() bool {
-	verbose, _ := rootCmd.Flags().GetBool("verbose")
-	return verbose
+func getVerboseLvl() int {
+	lvl, _ := rootCmd.Flags().GetCount("verbose")
+	return lvl
 }
 
 func getSerialClient() *fuji.SerialClient {
-	return fuji.NewSerialClient(isVerbose(), getDevice(), 9600)
+	return fuji.NewSerialClient(getVerboseLvl(), getDevice(), 9600)
 }
