@@ -31,7 +31,7 @@ var downloadCmd = &cobra.Command{
 			cmd.Println("No pictures found on the camera.")
 			return
 		}
-		selectedImages, err := getSelectedImages(args, count)
+		selectedImages, err := collectImageIndices(args, count)
 		if err != nil {
 			cmd.PrintErr(err)
 			return
@@ -40,10 +40,10 @@ var downloadCmd = &cobra.Command{
 	},
 }
 
-// getSelectedImages parses the command line arguments to determine which images to download.
+// collectImageIndices parses the command line arguments to determine which images to download.
 // Parameters are the command line arguments and the total count of images available.
-// It returns a slice of image numbers to download or an error if the input is invalid.
-func getSelectedImages(args []string, count int) ([]int, error) {
+// It returns a slice of all image indices in case of "all" argument, or a slice with a single image index.
+func collectImageIndices(args []string, count int) ([]int, error) {
 	imgNumberArg := 0
 	selectedImages := []int{}
 	if len(args) != 1 {
