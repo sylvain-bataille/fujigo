@@ -221,8 +221,22 @@ func (s *SerialClient) CountPictures() (int, error) {
 	return count, nil
 }
 
+func (s *SerialClient) setBaudrateSetting(baudRate int) error {
+	if s.Verbose {
+		fmt.Printf("Resetting baudrate to %d...\n", baudRate)
+	}
+	s.BaudRate = baudRate
+	s.pause()
+	return nil
+}
+
+func (s *SerialClient) pause() {
+	time.Sleep(100 * time.Millisecond)
+}
+
 func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	// Set higher baudrate for faster download
+	initialBaudRate := s.BaudRate
 	err := s.setBaudRate(BAUD_115200)
 	if err != nil {
 		return nil, err
@@ -236,6 +250,7 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 		return nil, err
 	}
 	defer s.Close()
+	defer s.setBaudrateSetting(initialBaudRate)
 
 	downloadMsg := GetDownloadPictureMessage(pictureNumber)
 	err = s.SendCommand(downloadMsg)
@@ -253,6 +268,7 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	if s.Verbose {
 		fmt.Printf("Downloaded picture %d, size: %d bytes\n", pictureNumber, len(pictureData))
 	}
+	// Restore initial baudrate
 	return pictureData, nil
 }
 
@@ -283,8 +299,7 @@ func (s *SerialClient) setBaudRate(baudRate BaudRate) error {
 	//s.Close()
 	s.BaudRate = GetBaudRateAsInt(baudRate)
 
-	//Sleep 1 second to ensure the camera is ready
-	time.Sleep(100 * time.Millisecond)
+	s.pause()
 	// err = s.SendMessage(END_OF_COMMUNICATION_MSG)
 	// if err != nil {
 	// 	fmt.Println("Error sending EOT:", err)
@@ -422,7 +437,7 @@ func (s *SerialClient) readPacket(acknowledge bool, skipBytes int) ([]byte, erro
 			}
 		} else {
 			if s.Verbose {
-				fmt.Printf("Received byte: 0x%02X\n", b)
+				//fmt.Printf("Received byte: 0x%02X\n", b)
 			}
 			// Regular byte, add to data
 			buffer = append(buffer, b)
