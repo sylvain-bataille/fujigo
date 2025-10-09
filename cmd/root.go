@@ -33,7 +33,7 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().CountP("verbose", "v", "verbose output (add multiple times for more verbosity : v or vv)")
 	rootCmd.PersistentFlags().StringP("device", "d", "/dev/ttyUSB0", "the serial device to use (e.g., /dev/ttyUSB0 or COM3)")
 
 }
@@ -43,11 +43,11 @@ func getDevice() string {
 	return device
 }
 
-func isVerbose() bool {
-	verbose, _ := rootCmd.Flags().GetBool("verbose")
-	return verbose
+func getVerboseLvl() int {
+	lvl, _ := rootCmd.Flags().GetCount("verbose")
+	return lvl
 }
 
 func getSerialClient() *fuji.SerialClient {
-	return fuji.NewSerialClient(isVerbose(), getDevice(), 9600)
+	return fuji.NewSerialClient(getVerboseLvl(), getDevice(), 9600)
 }

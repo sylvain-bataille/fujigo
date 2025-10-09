@@ -12,7 +12,7 @@ func TestXor(t *testing.T) {
 }
 
 func TestParseCameraVersionPacket(t *testing.T) {
-	parser := GetParser(true)
+	parser := GetParser(0)
 	data := []byte{0x00, 0x05, 0x08, 0x00, 0x46, 0x75, 0x6A, 0x69, 0x20, 0x58, 0x70, 0x72}
 	version, err := parser.ParseCameraVersionPacket(data)
 	if err != nil {
@@ -25,7 +25,7 @@ func TestParseCameraVersionPacket(t *testing.T) {
 }
 
 func TestParseCountPicturesPacket(t *testing.T) {
-	parser := GetParser(true)
+	parser := GetParser(0)
 	data := []byte{0x00, 0x06, 0x02, 0x00, 0x03, 0x00}
 	count, err := parser.ParseCountPicturesPacket(data)
 	if err != nil {

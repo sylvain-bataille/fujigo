@@ -32,10 +32,6 @@ type Message struct {
 	pretty string
 }
 
-type Parser struct {
-	verbose bool
-}
-
 var ENQUIRY_MSG = Message{data: []byte{ENQ}, pretty: "ENQ"}
 var BEGIN_MSG = Message{data: []byte{DLE, STX}, pretty: "DLE STX"}
 var GET_CAMERA_VERSION_MSG = Message{data: []byte{0x00, 0x09, 0x00, 0x00}, pretty: "GET_CAMERA_VERSION"}
@@ -43,13 +39,6 @@ var COUNT_PICTURES_MSG = Message{data: []byte{0x00, 0x0B, 0x00, 0x00}, pretty: "
 var END_MSG = Message{data: []byte{DLE, ETX}, pretty: "DLE ETX"}
 var ACK_MSG = Message{data: []byte{ACK}, pretty: "ACK"}
 var END_OF_COMMUNICATION_MSG = Message{data: []byte{EOT}, pretty: "EOT"}
-
-// GetParser instantiate a Parser
-func GetParser(verbose bool) Parser {
-	return Parser{
-		verbose: verbose,
-	}
-}
 
 // BuildEndTextMessageWithChecksum returns a 3 bytes message formated as : DLE ETX CHECKSUM
 // Checksum is calculated from the data previously sent and ETX byte
