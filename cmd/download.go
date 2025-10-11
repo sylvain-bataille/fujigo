@@ -18,8 +18,7 @@ var downloadCmd = &cobra.Command{
 	Use count command to see how many images are available.
 	Example to download image number 3: fujigo download 3
 	Example to download all images: fujigo download all`,
-	ValidArgs: []string{"all"},
-	Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Args: cobra.MatchAll(cobra.ExactArgs(1)),
 	Run: func(cmd *cobra.Command, args []string) {
 		serialClient := getSerialClient()
 		count, error := serialClient.CountPictures()
