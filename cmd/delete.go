@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"slices"
+
 	"github.com/spf13/cobra"
 	"github.com/sylvain-bataille/fujigo/fuji"
 )
@@ -34,16 +36,18 @@ var deleteCmd = &cobra.Command{
 
 // deleteSelectedImages deletes all images whose indices are in the selectedImages slice.
 func deleteSelectedImages(selectedImages []int, serialClient *fuji.SerialClient, cmd *cobra.Command) {
-	indexShift := 0
+	deletedImages := 0
+	slices.Sort(selectedImages)
+	selectedImages = slices.Compact(selectedImages)
 	for _, imgNumber := range selectedImages {
 		cmd.Printf("Deleting image %d...\n", imgNumber)
-		err := serialClient.DeletePicture(imgNumber - indexShift)
+		err := serialClient.DeletePicture(imgNumber - deletedImages)
 		if err != nil {
 			cmd.Printf("Error deleting image %d: %v\n", imgNumber, err)
 			continue
 		}
 		cmd.Printf("Image %d deleted successfully.\n", imgNumber)
-		indexShift++
+		deletedImages++
 	}
 }
 
