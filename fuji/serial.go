@@ -86,7 +86,7 @@ func (s *SerialClient) sendCommand(msg Message) error {
 func (s *SerialClient) sendMessage(msg Message) error {
 	if s.VerboseLvl > 1 {
 		fmt.Printf("Sending message: ")
-		fmt.Printf(" (%s)\n", msg.pretty)
+		fmt.Printf("% X (%s)\n", msg.data, msg.pretty)
 	}
 	n, err := s.sendBytes(msg.data)
 	if err != nil {
@@ -94,9 +94,6 @@ func (s *SerialClient) sendMessage(msg Message) error {
 	}
 	if n != len(msg.data) {
 		return fmt.Errorf("sent %d bytes, expected to send %d bytes", n, len(msg.data))
-	}
-	if s.VerboseLvl > 1 {
-		fmt.Printf("Message sent: %s\n", msg.pretty)
 	}
 	return nil
 }
