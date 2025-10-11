@@ -31,20 +31,22 @@ var deleteCmd = &cobra.Command{
 			cmd.PrintErr(err)
 			return
 		}
-		deleteAllImages(selectedImages, serialClient, cmd)
+		deleteSelectedImages(selectedImages, serialClient, cmd)
 	},
 }
 
-// deleteAllImages deletes all images whose indices are in the selectedImages slice.
-func deleteAllImages(selectedImages []int, serialClient *fuji.SerialClient, cmd *cobra.Command) {
+// deleteSelectedImages deletes all images whose indices are in the selectedImages slice.
+func deleteSelectedImages(selectedImages []int, serialClient *fuji.SerialClient, cmd *cobra.Command) {
+	indexShift := 0
 	for _, imgNumber := range selectedImages {
 		cmd.Printf("Deleting image %d...\n", imgNumber)
-		err := serialClient.DeletePicture(imgNumber)
+		err := serialClient.DeletePicture(imgNumber - indexShift)
 		if err != nil {
 			cmd.Printf("Error deleting image %d: %v\n", imgNumber, err)
 			continue
 		}
 		cmd.Printf("Image %d deleted successfully.\n", imgNumber)
+		indexShift++
 	}
 }
 

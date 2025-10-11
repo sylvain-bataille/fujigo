@@ -36,6 +36,10 @@ var downloadCmd = &cobra.Command{
 			return
 		}
 		saveAllImagesToFile(selectedImages, serialClient, cmd)
+		deleteAfter, _ := cmd.Flags().GetBool("delete")
+		if deleteAfter {
+			deleteSelectedImages(selectedImages, serialClient, cmd)
+		}
 	},
 }
 
@@ -101,6 +105,7 @@ func saveToFile(filename string, data []byte) error {
 
 func init() {
 	rootCmd.AddCommand(downloadCmd)
+	downloadCmd.Flags().Bool("delete", false, "Delete pictures from the camera after downloading")
 
 	// Here you will define your flags and configuration settings.
 
