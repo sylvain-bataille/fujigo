@@ -284,6 +284,43 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	return pictureData, nil
 }
 
+func (s *SerialClient) DeletePicture(pictureNumber int) error {
+	if s.VerboseLvl > 0 {
+		fmt.Println("Initiating communication...")
+	}
+	err := s.initiateCommunication()
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	deleteMsg := BuildDeletePictureMessage(pictureNumber)
+	if s.VerboseLvl > 0 {
+		fmt.Printf("Send delete picture command: %s\n", deleteMsg.pretty)
+	}
+	err = s.sendCommand(deleteMsg)
+	if err != nil {
+		return err
+	}
+
+	response, err := s.readPacket(true, defaultPacketParser{verboseLvl: s.VerboseLvl})
+	if err != nil {
+		return err
+	}
+
+	success, err := GetParser(s.VerboseLvl).ParseDeletePicturePacket(response)
+	if err != nil {
+		return fmt.Errorf("Parsing issue: %w", err)
+	}
+	if !success {
+		return fmt.Errorf("Failed to delete picture %d", pictureNumber)
+	}
+	if s.VerboseLvl > 0 {
+		fmt.Printf("Picture %d deleted successfully\n", pictureNumber)
+	}
+	return nil
+}
+
 func (s *SerialClient) setBaudRate(baudRate BaudRate) error {
 	if s.VerboseLvl > 0 {
 		fmt.Println("Initiating communication...")
