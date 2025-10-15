@@ -50,6 +50,22 @@ func (p Parser) ParseCountPicturesPacket(data []byte) (int, error) {
 	return int(count), nil
 }
 
+// Parse the response data from DELETE_PICTURE command
+func (p Parser) ParseDeletePicturePacket(data []byte) (bool, error) {
+	if p.verboseLvl > 0 {
+		fmt.Printf("Raw response to parse as delete picture packet: % X\n", data)
+		fmt.Println("Format should be 0x00 0x1A 0x01 0x00 STATUS")
+	}
+	if len(data) < 5 || data[0] != 0x00 || data[1] != 0x1A || data[2] != 0x01 || data[3] != 0x00 {
+		return false, fmt.Errorf("Malformated message")
+	}
+	status := data[4]
+	if status == 0x00 {
+		return true, nil
+	}
+	return false, nil
+}
+
 // packetParser defines an interface for parsing different types of packets
 // a packetParser can modify the raw data received from the camera when reading from serial
 type packetParser interface {
