@@ -1,0 +1,519 @@
+<!doctype html public "-//IETF//DTD HTML 2.0//EN">
+<HTML>
+
+<HEAD>
+
+<TITLE>FUJI Digitial Camera Serial Interface information
+</TITLE>
+
+<META name="description" content="Information about the serial interface protocol
+of Fuji digital cameras MX-500 and MX-700. Can be used to make your own software
+for downloading images etc.">
+
+<META name="keywords" content="amiga program to download pictures from fuji camera,fujifilm mx
+500, fujifilm mx 700, fuji mx500, fuji mx700, dx 7, fujifilm, amiga, protocol,
+seria, serial interface, fuji transfer protocol, serial link specification">
+
+
+</HEAD>
+
+<BODY>
+
+
+<hr>
+<p><h1>FUJI Digitial Camera Serial Interface information</h1>
+<hr>
+I spent a couple of days trying to figure out how the serial interface worked and I
+thought I'd publish the result of that effort here. I did not start from scratch,
+but  collected what I could from two other homepages 
+(see <a href="#references">references</a>) and then added some of my own. I
+developed this with the MX-700, but it should also work with an MX-500. Apparently
+the DX-7 also has a subset of these commands.
+
+
+<ul>
+<li> I  have written  a  piece  of  Amiga software which will perform most of the
+functions  implemented  in  the camera.  I tried to write it in a manner that it is
+easily portable to other platforms, since the only proprietary part is the handling
+of the serial port, which I have kept in a separate module. This module would be
+the only part which needs rewriting for other computers.
+<li> There are still some commands which are unknown to me. If you have any
+information that's missing here, please let me know so I add it on this page
+<li> If you find this page useful, please let me know
+<li> If I have omitted any crucial information or you just can't get it to work,
+just email me and I will try to provide additional help.
+<li> I do not know if an official protocol description is available. If
+you know of one let me know.
+<li>  The  information on these pages was partly gathered from the two web pages
+metioned in the references, while the rest I found out experimentally.
+</ul>
+
+<hr>
+<p><h2>General description</h2>
+As with most means of communication, the communication is carried out at a number
+of levels, each level providing the transport for the next higher level. For theses
+cameras I have identified the levels as such (my names):
+<ul>
+  <li> Hardware - the first level is the standard RS232 protocol. I will not be
+       discussing th RS232 protocol itself here because it is such a common thing. However
+       I have listed the specific settings that you must use - and that's all you really
+       need to know
+  <li> Low level transmission protocol -  is a set of rules which define how packets of
+       data are sent and received. It is concerned with packaging the data in such a way
+       that it is reliably transferred, and also by providing a way of determining that
+       the data has arrived intact at the destination. It does not however concern itself
+       with the actual contents of the packets, so it just ensured that packets
+       supplied by Level 3 are received verbatim by the level 3 protocol at the other
+       end.
+  <li> Command protocol - this is a description of the actual commands and data
+       which are sent between the camera and the computer. 
+</ul>
+
+
+<hr>
+<p><h2>Serial port</h2>
+The serial port should be set to 
+<ul>
+  <li> 8 data bits
+  <li> 1 stop bit
+  <li> even parity
+  <li> no hardware handshaking (i.e. 3 wire rather than 7 wire)
+  <li> baud rate 9600 initially. 
+</ul>
+<p>Higher speeds may be used, however the camera defaults to 9600 each time it is
+switched on or the control switch is set onto PC mode. Thus normally you would
+establish contact at 9600 and then increas the speed - exactly how this is done is
+described further on.
+<p>I don't know whether XON/XOFF should be used, however I seemed to notice no
+difference in operation with or without it.
+
+
+<hr>
+
+<p><h2>Low level Transmission Protocol</h2>
+<p>
+The FUJI MX serial interface uses a standard ISO protocol (but I don't know its
+name) for the low level data link protocol.
+This works as follows:
+
+<p><h3> Sequence of events </h3>
+<ol>
+  <li> Communication is started by sending an ENQ by any one side of the link (Enquiry = 0x05)
+  <li> An ACK (Acknowledge 0x06) should be received to confirm the link is in
+       operation
+  <ol>
+    <li> Send DLE-STX (Start of text = 0x10 0x02) to indicate the beginning of a
+         message 
+    <li> The first packet of data pertaining to this message is transmitted upto a
+         maximum of 512 bytes (see paragraph below about 0x10 characters contained
+         in the data).
+    <li> If the message length exceeds 512 bytes, intervening packets are sent as
+         follows
+    <ol>
+      <li> Send a DLE-ETB (end transmission block = 0x10 0x17) to indicate the end
+           of the packet currently being sent - however this indicates that more
+           packets relating to this message will be sent
+      <li> Send a Block Check Character (this is described below)
+      <li> An ACK (Acknowledge 0x06) should be received from the camera, meaning 
+           that the data was received correctly at the other end
+      <li> Send DLE-STX (Start of text = 0x10 0x02) to indicate the start of
+           another block of data (continuation of the message)
+      <li> Transmit the next block of data upto a maximum of 512 bytes (remember to
+           take care of 0x10s)
+      <li> If still more data needs to be transmitted, repeat process from
+           sending of the DLE-ETB until all the data has been sent.
+    </ol>
+    <li> A DLE-ETX (end of text = 0x10 0x03) is sent
+    <li> A Block Check Character is sent (this is a sort of checksum)
+    <li> An ACK (Acknowledge 0x06) should be received, meaning that the data was
+         received correctly at the other end
+    <li> Any further messages to be sent repeat procedure from sending of the DLE-STX
+  </ol> 
+  <li> When all communication is ready (for example before quitting the program) an
+       EOT (end of text = 0x04) is sent
+</ol>
+
+<p><h3> Character 0x10 contained in data</h3>
+The character 0x10 is known as DLE (data link escape). Its function is to indicate
+that the following character is a control character rather than data. A problem
+would thus arise if we want to send a data byte with the value of 0x10 since this
+would be interpreted as a DLE and the following character would be interpreted as a
+control character. 
+<p> 
+In order to avoid this problem, any character 0x10 which needs to be transmitted by
+data is preceeded by another 0x10 character. Thus if for example we want to send in
+the data: 
+<p> 07 08 09 10 11 12 13  we would change this into:
+<p> 07 08 09 <b>10</b> 10 11 12 13
+Note the extra 0x10 shown in bold. 
+<p>It is important that when considering lengths of
+transmitted packets you do not count the extra 0x10s inserted. for example the
+above packet should be counted as 7 bytes of actual data, not 8. Thus for example
+the maximum packet length of 512 bytes does not include the extra 0x10 characters
+in the count. The same also applies for checksums, where only the 'real' 0x10 is
+counted.
+
+
+<p><h3> The BCC - Block Check Character </h3>
+The block check character is a form of checksum. It is calculated simply as the XOR
+of all the transmitted data. 
+<p> In calculating the BCC, the following must be ignored (skipped)
+<ul>
+  <li> The initial DLE and STX
+  <li> The DLE preceeding the ETX or ETB
+  <li> The DLEs preceeding character 0x10s in the data portion. 
+</ul>
+Thus to summarize, the BCC takes into account the actual data and the ETX or ETB
+character that marks the end of the packet.
+<p> The value of BCC is initialised to zero after each STX. Thus each BCC
+covers the data in one single packet. 
+
+<hr>
+
+<p><h2> Specific command protocol for the camera</h2>
+The camera sends and receives packets encapsulated in the protocol described above.
+This part describes the <b>contents</b> of those packets sent. 
+<p>Thus  at  this  stage we shall not concern ourselves with checksums STX and such
+things  as these have been described above in the low level protocol.  However some examples will
+be  given  showing the actual bytes going over the serial link, and identifying the
+protocol level.
+
+<p><h3>General format</h3>
+First of all the host (i.e. the computer) always originates the commands, and the camera gives
+responses. That is: the computer gives the orders and the camera obeys and replies.
+<p>
+Each message has the following format:
+<ul>
+  <li> two bytes to indicate the command (or response) type
+  <li> two bytes to indicate the length of the data in the packet
+  <li> the data itself - upto a maximum of 512 bytes
+</ul>
+
+<p>  The  camera  should  reply to each command by sending a response message as
+soon as the command has executed.  (Note however that the low level protocol should
+check that an ACK is received immediately.  If an ACK is not received within a
+second or two, the low level protocol should signal trouble).
+
+<p>When a command (or response) must contain more that 512 bytes of data, since the
+low level protocol can only handle packets of 512 bytes, the data to be transmitted
+must  be  split  into  several  512  byte  chunks.   Note that the four byte header
+containing the command (or response) and the data length indicator must be repeated
+at  the  beginning  of  each packet related to that message.  Thus for example when
+uploading  a  picture,  the  first  two  bytes of each packet sent must contain the
+command  type,  while  the  next  two  bytes  must  contain the data length of that
+particular <i>packet</i> not the size of the full data to be transmitted. 
+
+<p> The same occurs when receiving data from the camera - that is, the camera puts
+the four byte response at the beginning of each packet it sends, the length
+indicator indicating the packet length and not the full message length.
+
+<p>Not  all commands take the same time to execute.  In particular the shoot and
+charge flash commands.  Thus allowance must be made for them when waiting for a response.
+
+<p><h3>Data formats</h3>
+The following types of data are used in the messages transferred:
+<ul>
+  <li> byte - a single byte representing either a small number or a set of flags
+  <li> char - actually also a byte, but representing an ascii character
+  <li> string - a sequence of characters used for names and so on
+  <li> int - a 16 bit integer. The low byte is first, followed by the high byte
+  <li> long - a long integer (32 bits) the first byte is the LSB, the last one
+	  is the MSB
+  <li> Preview - a preview image (i dont know much about this). This will
+	  invariably consist of a number of packets of bytes. Thus several packets will be
+	  required per message to transport it
+  <li> Image - as in preview, but this time a standard JPEG image.
+</ul>
+
+Note that the only times when multiple packets per message are required is for
+the transfer of images and previews. All other messages contain much less than
+512 bytes and can thus be transmitted in a single packet. You may be better off
+writing separate functions for the handling of image data and short commands.
+
+<p><h3>Specific command details</h3>
+The following table lists all the available commands for the MX-700. The command and
+response columns show the bytes to be transmitted and received. This does not
+include the control characters substitution of DLEs and other things that are
+done by the low level protocol.
+<p> You will notice that the information is incomplete for some commands. I am
+trying to find out more about them - if you know the missing info please let me
+know so I don't waste time re-inventing the wheel.
+
+<p> Some of the command meanings have links to a more detailed explanation.
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  </tr>
+  <tr>
+		<td><tt>00 00 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> Download thumbnail</td>
+  		<td><tt>00 01 00 02 xx xx xx-xx</tt></td>
+		<td>Packet of thumbnail data -variable length 1-512  </td>
+  </tr>
+  <tr>
+		<td><tt>00 02 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> <a href=FujiMX-commands.html#cmd02>Download Picture</a></td>
+  		<td><tt>00 03 nn nn xx-xx</tt></td>
+		<td>Packet of picture data -variable length 1-512</td>
+  </tr>
+  <tr>
+		<td><tt>01 07 01 00 xx   </tt></td>
+		<td>(byte) Speed	<\td>
+		<td> <a href=FujiMX-commands.html#cmd07>Change serial port speed</a></td>
+  		<td><tt>00 08 01 00 xx </tt></td>
+		<td>(byte)Result, 0=ok</td>
+  </tr>
+  <tr>
+		<td><tt>00 09 00 00      </tt></td>
+		<td>none			<\td>	
+		<td> What is  software version</td>
+  		<td><tt>00 05 nn 00 xx-xx </tt></td>
+		<td>Software version in ascii - variable length</td>
+  </tr>
+  <tr>
+		<td><tt>00 0A 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> <a href=FujiMX-commands.html#cmd0a>What is picture name of frame#</a></td>
+  		<td><tt>00 04 nn 00 xx-xx </tt></td>
+		<td> Filename of the frame in ascii</td>
+  </tr>
+  <tr>
+		<td><tt>00 0B 00 00      </tt></td>
+		<td>none			<\td>
+		<td> <a href=FujiMX-commands.html#cmd0b>How many pictures in camera</a></td>
+  		<td><tt>00 06 02 00 xx xx </tt></td>
+		<td>(int)No of pictures in camera </td>
+  </tr>
+  <tr>
+		<td><tt>00 0C 00 00      </tt></td>
+		<td>none			<\td>
+		<td> No operation ?</td>
+  		<td><tt>00 0d 01 00 xx </tt></td>
+		<td> (byte) Unknown</td>
+  </tr>
+  <tr>
+		<td><tt>00 0E nn nn xx-xx</tt></td>
+		<td>picture data packet- variable length 1-512<\td>
+		<td> <a href=FujiMX-commands.html#cmd0e>Upload Picture </a></td>
+  		<td><tt>None ? </tt></td>
+		<td> - </td>
+  </tr>
+  <tr>
+		<td><tt>00 0F nn 00 xx-xx</tt></td>
+		<td>String - variable<\td>
+		<td> <a href=FujiMX-commands.html#cmd0f>Set name for upload</a></td>
+  		<td><tt> 00 10 01 00 xx</tt></td>
+		<td> (byte) response</td>
+  </tr>
+  <tr>
+		<td><tt>00 11 00 00</tt></td>
+		<td>	??			<\td>
+		<td> Unknown</td>
+  		<td><tt> 00 12 01 00 xx</tt></td>
+		<td>(byte) Unknown </td>
+  </tr>
+  <tr>
+		<td><tt>00 13 01 00 xx</tt></td>
+		<td>??			<\td>
+		<td> Unknown</td>
+  		<td><tt>00 14 01 00 xx </tt></td>
+		<td>(byte) Unknown</td>
+  </tr>
+  <tr>
+		<td><tt>00 15 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What is name of last picture shot</td>
+  		<td><tt>00 16 nn 00 xx-xx </tt></td>
+		<td>Name in ascii - variable length  </td>
+  </tr>
+  <tr>
+		<td><tt>00 17 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> <a href=FujiMX-commands.html#cmd17>What is filesize of image #</a></td>
+  		<td><tt>00 18 04 00 xx xx xx xx</tt></td>
+		<td>(long) size of image in bytes </td>
+  </tr>
+  <tr>
+		<td><tt>00 19 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> Delete image #</td>
+  		<td><tt>00 1a 01 00 xx </tt></td>
+		<td>(byte) Result 0=ok </td>
+  </tr>
+  <tr>
+		<td><tt>00 1B 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What is card status and space available</td>
+  		<td><tt> 00 1c 05 00 xx xx xx xx yy </tt></td>
+		<td>(long)xx=space in bytes, (byte) yy=card status</td>
+  </tr>
+  <tr>
+		<td><tt>00 20 00 00</tt></td>
+		<td>none			<\td>
+		<td> Unknown</td>
+  		<td><tt>00 21 02 00 xx xx</tt></td>
+		<td> ? </td>
+  </tr>
+  <tr>
+		<td><tt>00 22 02 00 xx xx</tt></td>
+		<td>??			<\td>	<td> Unknown</td>
+  		<td><tt>00 23 01 00 xx </tt></td>
+		<td>(byte)Unknown </td>
+  </tr>
+  <tr>
+		<td><tt>00 27 00 00      </tt></td>
+		<td>none			<\td>
+		<td> <a href=FujiMX-commands.html#cmd27>Shoot a picture</a></td>
+  		<td><tt> 00 28 04 00 xx xx yy yy</tt></td>
+		<td>(int) xx= frame number where image is stored, (int)yy - unknown meaning </td>
+  </tr>
+  <tr>
+		<td><tt>00 29 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What is camera type</td>
+  		<td><tt>00 25 nn 00 xx-xx </tt></td>
+		<td>Ascii string variable length </td>
+  </tr>
+  <tr>
+		<td><tt>00 2A 02 00 xx xx</tt></td>
+		<td>(int) dir no	<\td>
+		<td> (?)What is name of directory no #</td>
+  		<td><tt>00 24 nn 00 xx-xx</tt></td>
+		<td> name in ascii</td>
+  </tr>
+  <tr>
+		<td><tt>00 2B ?? ?? ?--? </tt></td>
+		<td>??			<\td>
+		<td> Unknown</td>
+  		<td><tt>00 26 02 00 xx xx </tt></td>
+		<td> Unknown</td>
+  </tr>
+  <tr>
+		<td><tt>00 30 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What mode is flash set</td>
+  		<td><tt>00 31 01 00 xx </tt></td>
+		<td>(byte) xx=flash mode </td>
+  </tr>
+  <tr>
+		<td><tt>00 32 01 00 xx   </tt></td>
+		<td>(byte) Flash mode<\td>
+		<td> <a href=FujiMX-commands.html#cmd32>Set flash mode</a></td>
+  		<td><tt>00 33 01 00 xx </tt></td>
+		<td>(byte) result 0=ok </td>
+  </tr>
+  <tr>
+		<td><tt>00 34 02 00 xx xx </tt></td>
+		<td>(int) intensity(?)<\td>
+		<td> <a href=FujiMX-commands.html#cmd34>Charge flash</a></td>
+  		<td><tt> 00 ???????</tt></td>
+		<td> ? </td>
+  </tr>
+  <tr>
+		<td><tt>00 4C 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What commands are supported</td>
+  		<td><tt>00 4d nn 00 xx-xx </tt></td>
+		<td>list of supported commands (one byte for each command) </td>
+  </tr>
+  <tr>
+		<td><tt>00 51 01 00 xx   </tt></td>
+		<td>(byte) command?	<\td>
+		<td> (?) Get command information</td>
+  		<td><tt>00 52 02 00 xx xx </tt></td>
+		<td> 2 bytes or int - unknown meaning</td>
+  </tr>
+  <tr>
+		<td><tt>00 62 00 00      </tt></td>
+		<td>none			<\td>
+		<td> Download preview</td>
+  		<td><tt>00 63 nn nn xx-xx </tt></td>
+		<td>Packet of preview image data </td>
+  </tr>
+  <tr>
+		<td><tt>00 64 00 00      </tt></td>
+		<td>none			<\td>
+		<td> Shoot Preview</td>
+  		<td><tt> 00 65 02 00 xx xx</tt></td>
+		<td> Unknown</td>
+  </tr>
+  <tr>
+		<td><tt>00 80 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What is camera ID</td>
+  		<td><tt> 00 81 nn 00 xx-xx</tt></td>
+		<td>Ascii string </td>
+  </tr>
+  <tr>
+		<td><tt>00 82 nn 00 xx-xx</td>
+		<td>s</tt>String - variable<\td>
+		<td> Set camera ID</td>
+  		<td><tt>00 83 01 00 xx</tt></td>
+		<td>(?) result 0=ok</td>
+  </tr>
+  <tr>
+		<td><tt>00 84 00 00      </tt></td>
+		<td>none			<\td>
+		<td> What is date</td>
+  		<td><tt>00 85 0e 00 xx-xx</tt></td>
+		<td> Date in ascii YYYY MM DD HH MM SS</td>
+  </tr>
+  <tr>
+		<td><tt>00 86 0E 00 xx-xx</tt></td>
+		<td>(14 bytes) date	in ascii YYYY MM DD HH MM SS<\td>
+		<td> Set date (and time)</td>
+  		<td><tt>00 87 01 00 xx</tt></td>
+		<td>(?) (byte) result 0=ok </td>
+  </tr>
+  <tr>
+		<td><tt>00 C0 02 00 xx xx</tt></td>
+		<td>Unknown<\td>
+		<td>(?) Send image information</td>
+  		<td><tt> 00 c1 01 00 xx </tt></td>
+		<td>Unknown </td>
+  </tr>
+
+</table>
+
+<hr>
+<p><h2>Examples</h2>
+Here  I  give some examples of the actual bytes that are transferred between the
+computer  and  the  camera.   This  will help to illustrate some of the concepts
+which may not be too clear in the above text.
+<p>
+<h3><a href="FujiMX-example01.html">Example 1 setting the flash mode to auto</a></h3>
+
+<p>
+<h3><a href="FujiMX-example02.html">Example 2 Downloading a picture</a></h3>
+
+<hr>
+
+<p><h2><a "references"> References </h2>
+Many thanks to Thierry Bousch and 
+<a href=http://www.yk.rim.or.jp/~mamo/Computer/DS-7/index-e.html>Mamoru Ohno </a>
+from whose pages I found invaluable help in preparing this document.
+<hr>
+<p>Page last updated on 6th June 1999
+<!-- BEGIN WebSTAT Activation Code -->
+<script type="text/javascript" language="JavaScript" src="http://hits.webstat.com/cgi-bin/wsv2.cgi?54396"></script>
+<noscript>
+<a href="http://www.webstat.com">
+<img SRC="http://hits.webstat.com/scripts/wsb.php?ac=54396" border="0" alt="WebSTAT - Free Web Statistics"></a>
+</noscript>
+<!-- END WebSTAT Activation Code -->
+<p>
+<p>
+<a href=index.html>Back to front page</a>, 
+
+<hr>
+<img src=http://80.77.197.29:80/pagecount?FujiMX.html>
+
+<! amiga program to download pictures from fuji camera !>
+<! fujifilm mx 500 fujifilm mx 700 fuji mx500 fuji mx700 dx 7 dx7 fujifilm amiga protocol serial !>
+<! serial interface fuji transfer protocol serial link specification !>
+
+</BODY>
+</HTML>

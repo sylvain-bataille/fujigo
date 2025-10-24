@@ -1,0 +1,517 @@
+<!doctype html public "-//IETF//DTD HTML 2.0//EN">
+<HTML>
+
+<HEAD>
+
+<TITLE>FUJI Digitial Camera Command description
+</TITLE>
+
+</HEAD>
+
+<BODY>
+
+<hr>
+<a name=cmd02>
+<h1> 02 - Download Picture </h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 02 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> Download Picture</td>
+  		<td><tt>00 03 nn nn xx-xx</tt></td>
+		<td>Packet of picture data -variable length 1-512</td>
+  </tr>
+</table>
+<p><h2>Description</h2>
+Asks  the  camera  to send the image referred to by Frame-no.  The full image as
+stored  on  the  card is transferred.  The format of the image is referred to as
+EXIF.   I  don't really know what EXIF is exactly, but for practical purposes it
+seems identical to JPEG, and can in fact be loaded by any ordinary JPEG viewer.
+
+<p><h2>Parameters</h2>
+The only parameter needed is the frame number. This is an integer between 1 and
+the number of frames stored in the camera. Note that numbering starts from 1 and
+not from 0. Thus there is no frame 0.
+
+<p><h2>Response</h2>
+The camera will respond by sending a number of packets according to the low
+level protocol. The low level protocol must take care to check that the correct
+BCCs and ACKS are received, and must also acknowledge each packet received. 
+<p>
+Normally each packet will be of 512 bytes except the last one which may have any
+length less than or equal to 512.
+
+<p><h2>Hints</h2>
+When storing the received data, remember that the received packets start with
+the four byte reponse header (00 03 nn nn). Make sure that you do not include
+these in the file you write to disk, as the image would then become garbled.
+Also make sure that the low level protocol is doing its job of removing control
+codes and so on.
+<p>
+If  you  want to know how big a file to expect before starting the download (for
+example   to   know  how  much  memory  or  disk  space  to  allocate),  use  <a
+href=#cmd17>command 17</a> which gives you the file size of an image.
+<p>
+If you want to know the name of an image befor downloading and image, use <a
+href=#cmd0a>command 0a</a> which gives you the name of a particular frame. This
+may be particularly necessary since the MX-700/500 do not show the frame number
+on the display - only the filename is shown. Thus you would not know for sure which
+picture you will download without something to correlate the filename with the
+frame number.
+
+
+
+
+
+<hr>
+<a name=cmd07>
+<h1> 07 - Change baud rate of serial port</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+  <tr>
+		<td><tt>01 07 01 00 xx   </tt></td>
+		<td>(byte) Speed	<\td>
+		<td> Change serial port speed</td>
+  		<td><tt>00 08 01 00 xx </tt></td>
+		<td>(byte)Result, 0=ok</td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Sets the serial port of the camera to a different speed. Each time the camere is
+switched on, or changed from any mode into PC mode, the speed of the serial port is
+set to automatically to 9600. If you want to use a faster speed, then this command
+allows you to change the speed, apparently upto 115200 baud.
+
+<p><h2>Parameters</h2>
+A single byte represents the baud rate. The value of this byte is encoded as
+follows:
+<ul>
+  <tt>
+  <li> 0 =  9600
+  <li> 1 = 12000
+  <li> 2 = 14400
+  <li> 3 = 16800
+  <li> 4 = 19200
+  <li> 5 = 28800
+  <li> 6 = 38400
+  <li> 7 = 57600
+  <li> 8 =115200
+  </tt>
+</ul>
+I am not sure if all of them supported - I have used 0, 2, 4 and 7 succesfully
+
+<p><h2>Response</h2>
+A single byte in the respons indicates wether the result was ok. A value of zero
+means OK, while any non zero means that the command has failed - and thus the speed
+has not been changed at all.
+
+<p><h2>Hints</h2>
+It is important that the correct procedure is followed in using this command. It
+actually took me quite some time to get it to work reliably. The sequence is as
+follows:
+<ul>
+  <li> Make sure the link is active by sending an ENQ and receiving an ACK
+  <li> Send the command with the desired speed in the parameter
+  <li> Wait for the ACK, followed by the response
+  <li> Check that the response was ok (i.e. result=0) and reply with an ACK
+  <li> Close the connection by sending an EOT
+  <li> Close down the serial port on the computer and re-open it at the desired
+       speed
+  <li> Enable the link again by sending an ENQ and receiving an ACK.
+</ul>
+Note that the speed of the port is not changed just after the command is sent, but
+rather after the EOT is sent. This of course means that the ACK and the response
+are received at the original speed. Also, the computer must send its ACK and also
+the EOT at the 'old' speed. The first character to be sent at the new speed is the
+final ENQ sent.
+<p>
+I have found that speeds higher than 19200 make no improvemenet in the time taken
+to transfer an image. It appears that this is not a shortcoming of my software
+since the processor appears 75% idle during the transfer when the speed is above
+19200 and upto 95% idle at the lower baud rates. If you find differently, please
+let me know, so that I look more carefully at my program.
+<p> In your program, always check for a speed setting of 9600, before trying to
+send the speed command. If the camera is working at a baud rate different to the
+one at which you are sending the command, then obviously the camera will not
+understand it and the speed will remain unchanged. The best way would be to send
+ENQs at different speeds, starting at 9600 (since that is the most likely) until
+you get a good response. Then if the speed is not what you want go through the
+above procedure to reset the speed to that which you desire.
+
+
+
+<hr>
+<a name=cmd0a>
+<h1> 0A - Get Picture Name</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 0A 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> What is picture name of frame #</td>
+  		<td><tt>00 04 nn 00 xx-xx </tt></td>
+		<td> Filename of the frame in ascii</td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Gives you the file name of a particular picture in the card.  
+
+<p><h2>Parameters</h2>
+You supply the frame number which is an integer (16 bits).
+
+<p><h2>Response</h2>
+An ascii string corresponding to the file name of the picture.
+
+<p><h2>Hints</h2>
+This
+may be particularly necessary since the MX-700/500 do not show the frame number
+on the display - only the filename is shown. Thus when using the camera you will
+normally know only the filename of a particular picture and not the number.
+However, all the commands refer to the framenumber, so this is the only way you
+can identify a frame number with a particular photo on the display.
+
+
+<hr>
+<a name=cmd0b>
+<h1> 0B - Get no of frames</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 0B 00 00      </tt></td>
+		<td>none			<\td>
+		<td> How many pictures in camera</td>
+  		<td><tt>00 06 02 00 xx xx </tt></td>
+		<td>(int)No of pictures in camera </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Enquires about the number of frames stored in the camera
+
+<p><h2>Parameters</h2>
+None
+
+<p><h2>Response</h2>
+Gives the number of frames in the camera. The result is an integer (16 bit)
+
+<p><h2>Hints</h2>
+This is useful when for example you want to download all the pictures in
+the camera. 
+
+<hr>
+<a name=cmd0e>
+<h1> 0E - Upload picture</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 0E nn nn xx-xx</tt></td>
+		<td>picture data packet- variable length 1-512<\td>
+		<td> Upload Picture </td>
+  		<td><tt>None ? </tt></td>
+		<td> - </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+With this command you may upload pictures from the computer into the camera.
+Note that you must first use the command <a href=#cmd0f>0F - Set name for
+upload</a>, to tell the camera under what name to store the image. The image is
+transferred in blocks of upto 512 bytes, as described in the low level protocol.
+
+<p><h2>Parameters</h2>
+Blocks of image data upto 512 bytes
+
+<p><h2>Response</h2>
+This command seems to give no response (apart from the ACK)
+
+<p><h2>Hints</h2>
+Remember that the 2 bytes for the command type and the two bytes for the length
+indicator must be included at the beginning of each packet.
+<p>
+The image to be uploaded must either be exactly 640x480 or exactly 1280x960.
+Images with other picture sizes will still be accepted and stored on the card,
+but will not show on the LCD - instead they will cause a message "! Read error"
+to appear.
+<p>
+The camera will not create previews for images uploaded by this command. This
+means that if you view the image on the LCD in the Thumbnail (3x3 image) mode, a
+blank frame will be shown for the picture. Also, any PC software you use which
+gives you thumbnail previews before loading an image will also not show the
+previews.   The  picture  is however displayed normally on the LCD in the normal
+mode. If you want your images to have a preview, then you must use a separate
+command to upload the preview - however, I haven't managed to find out how to do
+this.  
+
+<hr>
+<a name=cmd0f> 
+<h1> 0F - Set name for upload</h1>
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 0F nn 00 xx-xx</tt></td>
+		<td>String - variable length<\td>
+		<td> Set name for upload</td>
+  		<td><tt> 00 10 01 00 xx</tt></td>
+		<td> (byte) response</td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+This  command  must be sent before starting upload of an image.  With it you set
+the name for the image which you will be uploading.
+
+<p><h2>Parameters</h2>
+The  only parameter is the name string which must be of the form "DSCxxxxx.JPG",
+where xxxxx are digits 0 to 9, for example "DSC00124.JPG".
+Any other name format will not be accepted.
+
+<p><h2>Response</h2>
+A single byte is returned. I have found the following meanings:
+<ul>
+  <li> 03 - Given if you supply an invalid filename.  If you get this response,
+       it means that it is useless to proceed with the upload, since it will
+       not be accepted.
+  <li> 01 - An image with this filename already exists in the camera. If you
+       proceed uploading, you will overwrite the existing image.
+  <li> 00 - OK, the filename was accepted and no image with that filename was
+       already in the camera.
+</ul>
+
+<p><h2>Hints</h2>
+This command must always be sent before uploading. In case a response 03 is
+received, then you might as well abort the upload since the data will not be
+accepted. The camera will still send ACKs to the packets you send, but it will
+not store the data.
+
+<hr>
+<a name=cmd17>
+<h1>17 - Get Image size in bytes</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 17 02 00 xx xx</tt></td>
+		<td>(int) Frame no	<\td>
+		<td> What is filesize of image #</td>
+  		<td><tt>00 18 04 00 xx xx xx xx</tt></td>
+		<td>(long) size of image in bytes </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+This command lets you know the file length of an image before actually
+downloading it.
+
+<p><h2>Parameters</h2>
+You give the image number of which you want to know the size.
+
+<p><h2>Response</h2>
+The file size is returned as a long integer whose value corresponds to the
+length of the file in bytes.
+
+<p><h2>Hints</h2>
+This command is useful so that before downloading you can know in advance how
+much space to allocate for the incoming data. It will also give you some idea of
+how long it will take to download.
+
+
+
+
+<hr>
+<a name=cmd27>
+<h1> 27 - Shoot</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 27 00 00      </tt></td>
+		<td>none			<\td>
+		<td> Shoot a picture</td>
+  		<td><tt> 00 28 04 00 xx xx yy yy</tt></td>
+		<td>(int) xx= frame number where image is stored, (int)yy - unknown meaning </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Orders the camera to take a picture. The flash must have been prepared
+previously with <a href=#cmd34>command 34</a>
+
+<p><h2>Parameters</h2>
+This command has no parameters. Any settings you want to make (such as flash
+mode for example), must be done previously with separate commands.
+
+<p><h2>Response</h2>
+The frame number into which the new picture was stored is returned as an
+integer. Additionally, a second integer is returned, which I think is a status
+result. However I have no idea yet how to interpret this.
+
+The response will take some time. The command is acknowledged immediately, but
+the response message is only given after the picture is taken. Due to the time
+it takes for the shooting cycle, the response may thus be delayed by several
+seconds.
+
+<p><h2>Hints</h2>
+Due  to  the long response time, make sure that your low level protocol does not
+time   out   while  waiting  for  the  respons.   The  command  is  acknowledged
+immediately,  but the response message is only given after the picture is taken.
+Due  to  the  time  it  takes  for  the shooting cycle, the response may thus be
+delayed by several seconds.
+<p>
+If you do not actually need the flash, it seems that you may omit the <a href=#cmd34>Charge
+Flash</a> command. However, I do not know if that would be correct, nor if it
+has any side effects.
+<p>
+I have as yet found no way to put the camera in standby (as in when the trigger
+is partially pressed).
+
+
+
+
+
+
+<hr>
+<a name=cmd32>
+<h1> 32 - Set Flash Mode</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 32 01 00 xx   </tt></td>
+		<td>(byte) Flash mode<\td>
+		<td> Set flash mode</td>
+  		<td><tt>00 33 01 00 xx </tt></td>
+		<td>(byte) result 0=ok </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Sets the operating mode of the flashgun. There are four modes:
+<ul>
+  <li> Disabled - The flash is not used at all, irrespective of whether or not
+       there is enough light for a good picture.
+  <li> Forced - this sets the flash to maximum intensity. That is the automatic
+       exposure of the flash is disabled and the full burst is used
+  <li> Redeye reduction - Makes a lower intensity flash a short while before
+       taking the picture. A second more powerful flash is then fired to actually shoot
+       the picture. This helps prevent the problem of people looking red-eyed as
+       often happens with flash photos
+  <li> Auto - this is the default setting. Auto exposure is used and redeye
+       reduction is not enabled
+</ul>
+
+<p><h2>Parameters</h2>
+A single byte indicating the flashmode is given. The values are:
+<p> 0=Disabled,  1=Forced,  2=Redeye reduction, 3=Auto
+
+<p><h2>Response</h2>
+The response is a single byte which is 0 for OK, or 1 if the command failed.
+
+<p><h2>Hints</h2>
+None
+
+
+
+
+
+<hr>
+<a name=cmd34>
+<h1> 34 - Charge Flash</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+		<td><tt>00 34 02 00 xx xx </tt></td>
+		<td>(byte) intensity(?)<\td>
+		<td> Charge flash</td>
+  		<td><tt> 00 ???????</tt></td>
+		<td> </td>
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+Before shooting a picture, this command must be executed. It prepares the
+flashgun for action.
+
+<p><h2>Parameters</h2>
+The parameter for this command is said to be the flash intensity, however I seem
+to be getting identical results whatever I put in this parameter. I am still
+trying to find out more about this.
+
+<p><h2>Response</h2>
+I have not yet looked at the response of this command
+
+<p><h2>Hints</h2>
+Due  to  the long response time, make sure that your low level protocol does not
+time   out   while  waiting  for  the  respons.   The  command  is  acknowledged
+immediately,  but the response message is only given after the flash has been
+fully charged. The response may thus be delayed by several seconds.
+<p>
+If you do not actually need the flash, it seems that you may omit this command
+before shooting. However, I do not know if that would be correct, nor if it
+has any side effects.
+<p>
+Occasionally, it has happened that as a result of this command, the camera 'hangs'
+and will refuse to respond to anything except power off, i.e. even the thumbweel
+mode switch doesnt work. This has happened only rarely - if you notice this or have
+any idea how this happens (or how it can be prevented), please let me know.
+
+
+
+
+<hr>
+<a name=cmd__>
+<h1> __ _______</h1>
+
+<table border>
+  <tr BGCOLOR="#DEDEDE">
+    		<th>Command</th>	<th>Parameter</th>			<th>Meaning</th>			<th>Response</th> 	<th>Data</th>
+  <tr>
+
+  </tr>
+</table>
+
+<p><h2>Description</h2>
+
+<p><h2>Parameters</h2>
+
+<p><h2>Response</h2>
+
+<p><h2>Hints</h2>
+
+<hr>
+<p>Page last updated on 6th June 1999
+<!-- BEGIN WebSTAT Activation Code -->
+<script type="text/javascript" language="JavaScript" src="http://hits.webstat.com/cgi-bin/wsv2.cgi?54396"></script>
+<noscript>
+<a href="http://www.webstat.com">
+<img SRC="http://hits.webstat.com/scripts/wsb.php?ac=54396" border="0" alt="WebSTAT - Free Web Statistics"></a>
+</noscript>
+<!-- END WebSTAT Activation Code -->
+<HR>
+<p>
+<a href=FujiMX.html>Back to first page</a> ,  
+<a href=index.html>Back to home page</a> 
+
+<hr>
+<img src=http://80.77.197.29:80/pagecount?FujiMX-commands.html>
+</BODY>
+</HTML>
