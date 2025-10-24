@@ -36,3 +36,15 @@ func TestParseCountPicturesPacket(t *testing.T) {
 		t.Errorf("ParseCountPicturesPacket(%v) = %d; want %d", data, count, expected)
 	}
 }
+
+func TestParseDeletePicturePacket(t *testing.T) {
+	parser := GetParser(0)
+	data := []byte{0x00, 0x1A, 0x01, 0x00, 0x00}
+	success, err := parser.ParseDeletePicturePacket(data)
+	if err != nil {
+		t.Errorf("ParseDeletePicturePacket(%v) returned error: %v", data, err)
+	}
+	if !success {
+		t.Errorf("ParseDeletePicturePacket(%v) = false; want true", data)
+	}
+}

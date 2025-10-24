@@ -66,6 +66,18 @@ func BuildSetBaudrateMessage(baudRate BaudRate) Message {
 	return Message{data: msgData, pretty: fmt.Sprintf("SET_BAUDRATE %d", baudRate)}
 }
 
+// BuildDeletePictureMessage returns a message to delete a picture by its number
+func BuildDeletePictureMessage(pictureNumber int) Message {
+	if pictureNumber < 1 || pictureNumber > 65535 {
+		panic("Picture number must be between 1 and 65535")
+	}
+	msgData := []byte{0x00, 0x19, 0x02, 0x00}
+	countBytes := make([]byte, 2)
+	binary.LittleEndian.PutUint16(countBytes, uint16(pictureNumber))
+	msgData = append(msgData, countBytes...)
+	return Message{data: msgData, pretty: fmt.Sprintf("DELETE_PICTURE %d", pictureNumber)}
+}
+
 // GetBaudRateAsInt converts a BaudRate constant to its integer value
 func GetBaudRateAsInt(baudRate BaudRate) int {
 	switch baudRate {
