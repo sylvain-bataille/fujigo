@@ -21,9 +21,9 @@ var previewCmd = &cobra.Command{
 	Args: cobra.MatchAll(cobra.ExactArgs(1)),
 	Run: func(cmd *cobra.Command, args []string) {
 		serialClient := getSerialClient()
-		count, error := serialClient.CountPictures()
-		if error != nil {
-			cmd.PrintErr(error)
+		count, err := serialClient.CountPictures()
+		if err != nil {
+			cmd.PrintErr(err)
 			return
 		}
 		if count == 0 {

@@ -103,7 +103,7 @@ func (p thumbnailPacketParser) Parse(data []byte) ([]byte, error) {
 		fmt.Println("thumbnail parser verify package and remove control bytes")
 	}
 	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x01 {
-		return nil, fmt.Errorf("Malformated thumbnail packet")
+		return nil, fmt.Errorf("Malformed thumbnail packet")
 	}
 	size := binary.LittleEndian.Uint16(data[2:4])
 	if len(data) < int(4+size) {
