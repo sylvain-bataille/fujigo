@@ -92,6 +92,26 @@ func (p picturePacketParser) Parse(data []byte) ([]byte, error) {
 	return data[4:], nil
 }
 
+// thumbnailPacketParser is a packet parser for thumbnail data packets
+type thumbnailPacketParser struct {
+	verboseLvl int
+}
+
+func (p thumbnailPacketParser) Parse(data []byte) ([]byte, error) {
+	if p.verboseLvl > 1 {
+		fmt.Printf("data to parse: %x\n", data)
+		fmt.Println("thumbnail parser verify package and remove control bytes")
+	}
+	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x01 {
+		return nil, fmt.Errorf("Malformated thumbnail packet")
+	}
+	size := binary.LittleEndian.Uint16(data[2:4])
+	if len(data) < int(4+size) {
+		return nil, fmt.Errorf("Incomplete thumbnail packet")
+	}
+	return data[4:], nil
+}
+
 // defaultPacketParser is a packet parser that does not modify the data
 type defaultPacketParser struct {
 	verboseLvl int

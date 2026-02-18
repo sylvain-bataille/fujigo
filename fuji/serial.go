@@ -281,6 +281,39 @@ func (s *SerialClient) DownloadPicture(pictureNumber int) ([]byte, error) {
 	return pictureData, nil
 }
 
+// DownloadThumbnail downloads a thumbnail by its number (1 to 65535) and returns the raw JPEG data
+func (s *SerialClient) DownloadThumbnail(pictureNumber int) ([]byte, error) {
+	if s.VerboseLvl > 0 {
+		fmt.Println("Initiating communication...")
+	}
+	err := s.initiateCommunication()
+	if err != nil {
+		return nil, err
+	}
+	defer s.Close()
+
+	downloadMsg := BuildDownloadThumbnailMessage(pictureNumber)
+	if s.VerboseLvl > 0 {
+		fmt.Printf("Send download thumbnail command: %s\n", downloadMsg.pretty)
+	}
+	err = s.sendCommand(downloadMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Port.SetReadTimeout(time.Duration(10) * time.Second)
+	thumbnailData, err := s.readPacket(true, thumbnailPacketParser{verboseLvl: s.VerboseLvl})
+	s.Port.SetReadTimeout(s.DefaultTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.VerboseLvl > 0 {
+		fmt.Printf("Downloaded thumbnail %d, size: %d bytes\n", pictureNumber, len(thumbnailData))
+	}
+	return thumbnailData, nil
+}
+
 func (s *SerialClient) DeletePicture(pictureNumber int) error {
 	if s.VerboseLvl > 0 {
 		fmt.Println("Initiating communication...")

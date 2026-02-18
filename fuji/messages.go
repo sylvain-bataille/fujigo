@@ -60,6 +60,19 @@ func BuildDownloadPictureMessage(pictureNumber int) Message {
 	return Message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_PICTURE %d", pictureNumber)}
 }
 
+// BuildDownloadThumbnailMessage returns a message to download a thumbnail by its number
+// Picture number must be between 1 and 65535
+func BuildDownloadThumbnailMessage(pictureNumber int) Message {
+	if pictureNumber < 1 || pictureNumber > 65535 {
+		panic("Picture number must be between 1 and 65535")
+	}
+	msgData := []byte{0x00, 0x00, 0x02, 0x00}
+	countBytes := make([]byte, 2)
+	binary.LittleEndian.PutUint16(countBytes, uint16(pictureNumber))
+	msgData = append(msgData, countBytes...)
+	return Message{data: msgData, pretty: fmt.Sprintf("DOWNLOAD_THUMBNAIL %d", pictureNumber)}
+}
+
 // BuildSetBaudrateMessage returns a message to set the baudrate of the camera
 func BuildSetBaudrateMessage(baudRate BaudRate) Message {
 	msgData := []byte{0x01, 0x07, 0x01, 0x00, byte(baudRate)}
